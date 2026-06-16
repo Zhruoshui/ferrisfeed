@@ -36,7 +36,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   rust_lib_rss_reader:
     path: rust_builder
-  flutter_rust_bridge: 2.12.0
+  flutter_rust_bridge:
+    git:
+      url: https://github.com/fzyzcjy/flutter_rust_bridge
+      ref: 254b193
+      path: frb_dart
 
 dev_dependencies:
   flutter_test:
