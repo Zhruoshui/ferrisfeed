@@ -6,221 +6,323 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            // These functions are ignored because they are not marked as `pub`: `clean_xml_text`, `compare_optional_dates`, `decode_snapshot`, `extract_atom_link`, `extract_attribute`, `extract_blocks`, `extract_first_tag`, `extract_nested_author_name`, `extract_tag`, `invalid_input`, `non_empty_or`, `normalize_date_string`, `normalize_optional_url`, `normalize_url`, `not_found`, `now_iso_string`, `parse_atom`, `parse_feed_xml`, `parse_rss`, `parse`, `recalculate_feed_counts`, `serialize_snapshot`, `sort_articles`, `sort_feeds`
+// These functions are ignored because they are not marked as `pub`: `clean_xml_text`, `compare_optional_dates`, `decode_snapshot`, `extract_atom_link`, `extract_attribute`, `extract_blocks`, `extract_first_tag`, `extract_nested_author_name`, `extract_tag`, `import_feed_from_xml_sync`, `invalid_input`, `non_empty_or`, `normalize_date_string`, `normalize_optional_url`, `normalize_url`, `not_found`, `now_iso_string`, `parse_atom`, `parse_feed_xml`, `parse_rss`, `parse`, `recalculate_feed_counts`, `serialize_snapshot`, `sort_articles`, `sort_feeds`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArticleDraft`, `ParsedFeedPayload`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
+String emptyReaderSnapshotJson() =>
+    RustLib.instance.api.crateApiReaderEmptyReaderSnapshotJson();
 
-            String  emptyReaderSnapshotJson() => RustLib.instance.api.crateApiReaderEmptyReaderSnapshotJson();
+ReaderSnapshot decodeReaderSnapshot({required String snapshotJson}) => RustLib
+    .instance
+    .api
+    .crateApiReaderDecodeReaderSnapshot(snapshotJson: snapshotJson);
 
-ReaderSnapshot  decodeReaderSnapshot({required String snapshotJson }) => RustLib.instance.api.crateApiReaderDecodeReaderSnapshot(snapshotJson: snapshotJson);
+List<ArticleListItem> listArticles({
+  required String snapshotJson,
+  String? feedId,
+  required bool showStarredOnly,
+}) => RustLib.instance.api.crateApiReaderListArticles(
+  snapshotJson: snapshotJson,
+  feedId: feedId,
+  showStarredOnly: showStarredOnly,
+);
 
-List<ArticleListItem>  listArticles({required String snapshotJson , String? feedId , required bool showStarredOnly }) => RustLib.instance.api.crateApiReaderListArticles(snapshotJson: snapshotJson, feedId: feedId, showStarredOnly: showStarredOnly);
+Article getArticle({required String snapshotJson, required String articleId}) =>
+    RustLib.instance.api.crateApiReaderGetArticle(
+      snapshotJson: snapshotJson,
+      articleId: articleId,
+    );
 
-Article  getArticle({required String snapshotJson , required String articleId }) => RustLib.instance.api.crateApiReaderGetArticle(snapshotJson: snapshotJson, articleId: articleId);
+String addFeed({required String snapshotJson, required FeedDraft draft}) =>
+    RustLib.instance.api.crateApiReaderAddFeed(
+      snapshotJson: snapshotJson,
+      draft: draft,
+    );
 
-String  addFeed({required String snapshotJson , required FeedDraft draft }) => RustLib.instance.api.crateApiReaderAddFeed(snapshotJson: snapshotJson, draft: draft);
+String removeFeed({required String snapshotJson, required String feedId}) =>
+    RustLib.instance.api.crateApiReaderRemoveFeed(
+      snapshotJson: snapshotJson,
+      feedId: feedId,
+    );
 
-String  removeFeed({required String snapshotJson , required String feedId }) => RustLib.instance.api.crateApiReaderRemoveFeed(snapshotJson: snapshotJson, feedId: feedId);
+String markArticleRead({
+  required String snapshotJson,
+  required String articleId,
+  required bool isRead,
+}) => RustLib.instance.api.crateApiReaderMarkArticleRead(
+  snapshotJson: snapshotJson,
+  articleId: articleId,
+  isRead: isRead,
+);
 
-String  markArticleRead({required String snapshotJson , required String articleId , required bool isRead }) => RustLib.instance.api.crateApiReaderMarkArticleRead(snapshotJson: snapshotJson, articleId: articleId, isRead: isRead);
+String toggleArticleStar({
+  required String snapshotJson,
+  required String articleId,
+}) => RustLib.instance.api.crateApiReaderToggleArticleStar(
+  snapshotJson: snapshotJson,
+  articleId: articleId,
+);
 
-String  toggleArticleStar({required String snapshotJson , required String articleId }) => RustLib.instance.api.crateApiReaderToggleArticleStar(snapshotJson: snapshotJson, articleId: articleId);
+String clearAllReadArticles({required String snapshotJson}) => RustLib
+    .instance
+    .api
+    .crateApiReaderClearAllReadArticles(snapshotJson: snapshotJson);
 
-String  clearAllReadArticles({required String snapshotJson }) => RustLib.instance.api.crateApiReaderClearAllReadArticles(snapshotJson: snapshotJson);
+Future<ImportFeedResult> importFeedFromXml({
+  required String snapshotJson,
+  required String feedUrl,
+  required String xmlContent,
+}) => RustLib.instance.api.crateApiReaderImportFeedFromXml(
+  snapshotJson: snapshotJson,
+  feedUrl: feedUrl,
+  xmlContent: xmlContent,
+);
 
-Future<ImportFeedResult>  importFeedFromXml({required String snapshotJson , required String feedUrl , required String xmlContent }) => RustLib.instance.api.crateApiReaderImportFeedFromXml(snapshotJson: snapshotJson, feedUrl: feedUrl, xmlContent: xmlContent);
+class Article {
+  final String id;
+  final String feedId;
+  final String title;
+  final String url;
+  final String author;
+  final String summary;
+  final String content;
+  final String? publishedAt;
+  final bool isRead;
+  final bool isStarred;
 
-            class Article  {
-                final String id;
-final String feedId;
-final String title;
-final String url;
-final String author;
-final String summary;
-final String content;
-final String? publishedAt;
-final bool isRead;
-final bool isStarred;
+  const Article({
+    required this.id,
+    required this.feedId,
+    required this.title,
+    required this.url,
+    required this.author,
+    required this.summary,
+    required this.content,
+    this.publishedAt,
+    required this.isRead,
+    required this.isStarred,
+  });
 
-                const Article({required this.id ,required this.feedId ,required this.title ,required this.url ,required this.author ,required this.summary ,required this.content ,this.publishedAt ,required this.isRead ,required this.isStarred ,});
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      feedId.hashCode ^
+      title.hashCode ^
+      url.hashCode ^
+      author.hashCode ^
+      summary.hashCode ^
+      content.hashCode ^
+      publishedAt.hashCode ^
+      isRead.hashCode ^
+      isStarred.hashCode;
 
-                
-                
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Article &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          feedId == other.feedId &&
+          title == other.title &&
+          url == other.url &&
+          author == other.author &&
+          summary == other.summary &&
+          content == other.content &&
+          publishedAt == other.publishedAt &&
+          isRead == other.isRead &&
+          isStarred == other.isStarred;
+}
 
-                
-        @override
-        int get hashCode => id.hashCode^feedId.hashCode^title.hashCode^url.hashCode^author.hashCode^summary.hashCode^content.hashCode^publishedAt.hashCode^isRead.hashCode^isStarred.hashCode;
-        
+class ArticleListItem {
+  final String id;
+  final String feedId;
+  final String feedTitle;
+  final String title;
+  final String summary;
+  final String? publishedAt;
+  final bool isRead;
+  final bool isStarred;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is Article &&
-                runtimeType == other.runtimeType
-                && id == other.id&& feedId == other.feedId&& title == other.title&& url == other.url&& author == other.author&& summary == other.summary&& content == other.content&& publishedAt == other.publishedAt&& isRead == other.isRead&& isStarred == other.isStarred;
-        
-            }
+  const ArticleListItem({
+    required this.id,
+    required this.feedId,
+    required this.feedTitle,
+    required this.title,
+    required this.summary,
+    this.publishedAt,
+    required this.isRead,
+    required this.isStarred,
+  });
 
-class ArticleListItem  {
-                final String id;
-final String feedId;
-final String feedTitle;
-final String title;
-final String summary;
-final String? publishedAt;
-final bool isRead;
-final bool isStarred;
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      feedId.hashCode ^
+      feedTitle.hashCode ^
+      title.hashCode ^
+      summary.hashCode ^
+      publishedAt.hashCode ^
+      isRead.hashCode ^
+      isStarred.hashCode;
 
-                const ArticleListItem({required this.id ,required this.feedId ,required this.feedTitle ,required this.title ,required this.summary ,this.publishedAt ,required this.isRead ,required this.isStarred ,});
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ArticleListItem &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          feedId == other.feedId &&
+          feedTitle == other.feedTitle &&
+          title == other.title &&
+          summary == other.summary &&
+          publishedAt == other.publishedAt &&
+          isRead == other.isRead &&
+          isStarred == other.isStarred;
+}
 
-                
-                
+class Feed {
+  final String id;
+  final String title;
+  final String sourceUrl;
+  final String siteUrl;
+  final String description;
+  final int unreadCount;
+  final int articleCount;
+  final String? lastSyncedAt;
 
-                
-        @override
-        int get hashCode => id.hashCode^feedId.hashCode^feedTitle.hashCode^title.hashCode^summary.hashCode^publishedAt.hashCode^isRead.hashCode^isStarred.hashCode;
-        
+  const Feed({
+    required this.id,
+    required this.title,
+    required this.sourceUrl,
+    required this.siteUrl,
+    required this.description,
+    required this.unreadCount,
+    required this.articleCount,
+    this.lastSyncedAt,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ArticleListItem &&
-                runtimeType == other.runtimeType
-                && id == other.id&& feedId == other.feedId&& feedTitle == other.feedTitle&& title == other.title&& summary == other.summary&& publishedAt == other.publishedAt&& isRead == other.isRead&& isStarred == other.isStarred;
-        
-            }
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      sourceUrl.hashCode ^
+      siteUrl.hashCode ^
+      description.hashCode ^
+      unreadCount.hashCode ^
+      articleCount.hashCode ^
+      lastSyncedAt.hashCode;
 
-class Feed  {
-                final String id;
-final String title;
-final String sourceUrl;
-final String siteUrl;
-final String description;
-final int unreadCount;
-final int articleCount;
-final String? lastSyncedAt;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Feed &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          sourceUrl == other.sourceUrl &&
+          siteUrl == other.siteUrl &&
+          description == other.description &&
+          unreadCount == other.unreadCount &&
+          articleCount == other.articleCount &&
+          lastSyncedAt == other.lastSyncedAt;
+}
 
-                const Feed({required this.id ,required this.title ,required this.sourceUrl ,required this.siteUrl ,required this.description ,required this.unreadCount ,required this.articleCount ,this.lastSyncedAt ,});
+class FeedDraft {
+  final String title;
+  final String sourceUrl;
+  final String siteUrl;
+  final String description;
 
-                
-                
+  const FeedDraft({
+    required this.title,
+    required this.sourceUrl,
+    required this.siteUrl,
+    required this.description,
+  });
 
-                
-        @override
-        int get hashCode => id.hashCode^title.hashCode^sourceUrl.hashCode^siteUrl.hashCode^description.hashCode^unreadCount.hashCode^articleCount.hashCode^lastSyncedAt.hashCode;
-        
+  @override
+  int get hashCode =>
+      title.hashCode ^
+      sourceUrl.hashCode ^
+      siteUrl.hashCode ^
+      description.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is Feed &&
-                runtimeType == other.runtimeType
-                && id == other.id&& title == other.title&& sourceUrl == other.sourceUrl&& siteUrl == other.siteUrl&& description == other.description&& unreadCount == other.unreadCount&& articleCount == other.articleCount&& lastSyncedAt == other.lastSyncedAt;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FeedDraft &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          sourceUrl == other.sourceUrl &&
+          siteUrl == other.siteUrl &&
+          description == other.description;
+}
 
-class FeedDraft  {
-                final String title;
-final String sourceUrl;
-final String siteUrl;
-final String description;
+class ImportFeedResult {
+  final String snapshotJson;
+  final Feed feed;
+  final List<Article> insertedArticles;
 
-                const FeedDraft({required this.title ,required this.sourceUrl ,required this.siteUrl ,required this.description ,});
+  const ImportFeedResult({
+    required this.snapshotJson,
+    required this.feed,
+    required this.insertedArticles,
+  });
 
-                
-                
+  @override
+  int get hashCode =>
+      snapshotJson.hashCode ^ feed.hashCode ^ insertedArticles.hashCode;
 
-                
-        @override
-        int get hashCode => title.hashCode^sourceUrl.hashCode^siteUrl.hashCode^description.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is FeedDraft &&
-                runtimeType == other.runtimeType
-                && title == other.title&& sourceUrl == other.sourceUrl&& siteUrl == other.siteUrl&& description == other.description;
-        
-            }
-
-class ImportFeedResult  {
-                final String snapshotJson;
-final Feed feed;
-final List<Article> insertedArticles;
-
-                const ImportFeedResult({required this.snapshotJson ,required this.feed ,required this.insertedArticles ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => snapshotJson.hashCode^feed.hashCode^insertedArticles.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ImportFeedResult &&
-                runtimeType == other.runtimeType
-                && snapshotJson == other.snapshotJson&& feed == other.feed&& insertedArticles == other.insertedArticles;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImportFeedResult &&
+          runtimeType == other.runtimeType &&
+          snapshotJson == other.snapshotJson &&
+          feed == other.feed &&
+          insertedArticles == other.insertedArticles;
+}
 
 class ReaderError implements FrbException {
-                final String code;
-final String message;
+  final String code;
+  final String message;
 
-                const ReaderError({required this.code ,required this.message ,});
+  const ReaderError({required this.code, required this.message});
 
-                
-                
+  @override
+  int get hashCode => code.hashCode ^ message.hashCode;
 
-                
-        @override
-        int get hashCode => code.hashCode^message.hashCode;
-        
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReaderError &&
+          runtimeType == other.runtimeType &&
+          code == other.code &&
+          message == other.message;
+}
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ReaderError &&
-                runtimeType == other.runtimeType
-                && code == other.code&& message == other.message;
-        
-            }
+class ReaderSnapshot {
+  final List<Feed> feeds;
+  final List<Article> articles;
+  final String? lastUpdatedAt;
 
-class ReaderSnapshot  {
-                final List<Feed> feeds;
-final List<Article> articles;
-final String? lastUpdatedAt;
+  const ReaderSnapshot({
+    required this.feeds,
+    required this.articles,
+    this.lastUpdatedAt,
+  });
 
-                const ReaderSnapshot({required this.feeds ,required this.articles ,this.lastUpdatedAt ,});
+  @override
+  int get hashCode =>
+      feeds.hashCode ^ articles.hashCode ^ lastUpdatedAt.hashCode;
 
-                
-                
-
-                
-        @override
-        int get hashCode => feeds.hashCode^articles.hashCode^lastUpdatedAt.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ReaderSnapshot &&
-                runtimeType == other.runtimeType
-                && feeds == other.feeds&& articles == other.articles&& lastUpdatedAt == other.lastUpdatedAt;
-        
-            }
-            
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReaderSnapshot &&
+          runtimeType == other.runtimeType &&
+          feeds == other.feeds &&
+          articles == other.articles &&
+          lastUpdatedAt == other.lastUpdatedAt;
+}

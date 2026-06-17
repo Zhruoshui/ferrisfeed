@@ -3,7 +3,6 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
@@ -14,140 +13,206 @@ import 'dart:convert';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
+abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
+  RustLibApiImplPlatform({
+    required super.handler,
+    required super.wire,
+    required super.generalizedFrbRustBinding,
+    required super.portManager,
+  });
 
+  @protected
+  String dco_decode_String(dynamic raw);
 
+  @protected
+  Article dco_decode_article(dynamic raw);
 
-                abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
-                  RustLibApiImplPlatform({
-                    required super.handler,
-                    required super.wire,
-                    required super.generalizedFrbRustBinding,
-                    required super.portManager,
-                  });
+  @protected
+  ArticleListItem dco_decode_article_list_item(dynamic raw);
 
-                  
+  @protected
+  bool dco_decode_bool(dynamic raw);
 
-                  @protected String dco_decode_String(dynamic raw);
+  @protected
+  FeedDraft dco_decode_box_autoadd_feed_draft(dynamic raw);
 
-@protected Article dco_decode_article(dynamic raw);
+  @protected
+  Feed dco_decode_feed(dynamic raw);
 
-@protected ArticleListItem dco_decode_article_list_item(dynamic raw);
+  @protected
+  FeedDraft dco_decode_feed_draft(dynamic raw);
 
-@protected bool dco_decode_bool(dynamic raw);
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
-@protected FeedDraft dco_decode_box_autoadd_feed_draft(dynamic raw);
+  @protected
+  ImportFeedResult dco_decode_import_feed_result(dynamic raw);
 
-@protected Feed dco_decode_feed(dynamic raw);
+  @protected
+  List<Article> dco_decode_list_article(dynamic raw);
 
-@protected FeedDraft dco_decode_feed_draft(dynamic raw);
+  @protected
+  List<ArticleListItem> dco_decode_list_article_list_item(dynamic raw);
 
-@protected int dco_decode_i_32(dynamic raw);
+  @protected
+  List<Feed> dco_decode_list_feed(dynamic raw);
 
-@protected ImportFeedResult dco_decode_import_feed_result(dynamic raw);
+  @protected
+  Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
-@protected List<Article> dco_decode_list_article(dynamic raw);
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
 
-@protected List<ArticleListItem> dco_decode_list_article_list_item(dynamic raw);
+  @protected
+  ReaderError dco_decode_reader_error(dynamic raw);
 
-@protected List<Feed> dco_decode_list_feed(dynamic raw);
+  @protected
+  ReaderSnapshot dco_decode_reader_snapshot(dynamic raw);
 
-@protected Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+  @protected
+  int dco_decode_u_8(dynamic raw);
 
-@protected String? dco_decode_opt_String(dynamic raw);
+  @protected
+  void dco_decode_unit(dynamic raw);
 
-@protected ReaderError dco_decode_reader_error(dynamic raw);
+  @protected
+  String sse_decode_String(SseDeserializer deserializer);
 
-@protected ReaderSnapshot dco_decode_reader_snapshot(dynamic raw);
+  @protected
+  Article sse_decode_article(SseDeserializer deserializer);
 
-@protected int dco_decode_u_8(dynamic raw);
+  @protected
+  ArticleListItem sse_decode_article_list_item(SseDeserializer deserializer);
 
-@protected void dco_decode_unit(dynamic raw);
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
 
-@protected String sse_decode_String(SseDeserializer deserializer);
+  @protected
+  FeedDraft sse_decode_box_autoadd_feed_draft(SseDeserializer deserializer);
 
-@protected Article sse_decode_article(SseDeserializer deserializer);
+  @protected
+  Feed sse_decode_feed(SseDeserializer deserializer);
 
-@protected ArticleListItem sse_decode_article_list_item(SseDeserializer deserializer);
+  @protected
+  FeedDraft sse_decode_feed_draft(SseDeserializer deserializer);
 
-@protected bool sse_decode_bool(SseDeserializer deserializer);
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
-@protected FeedDraft sse_decode_box_autoadd_feed_draft(SseDeserializer deserializer);
+  @protected
+  ImportFeedResult sse_decode_import_feed_result(SseDeserializer deserializer);
 
-@protected Feed sse_decode_feed(SseDeserializer deserializer);
+  @protected
+  List<Article> sse_decode_list_article(SseDeserializer deserializer);
 
-@protected FeedDraft sse_decode_feed_draft(SseDeserializer deserializer);
+  @protected
+  List<ArticleListItem> sse_decode_list_article_list_item(
+    SseDeserializer deserializer,
+  );
 
-@protected int sse_decode_i_32(SseDeserializer deserializer);
+  @protected
+  List<Feed> sse_decode_list_feed(SseDeserializer deserializer);
 
-@protected ImportFeedResult sse_decode_import_feed_result(SseDeserializer deserializer);
+  @protected
+  Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
-@protected List<Article> sse_decode_list_article(SseDeserializer deserializer);
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
 
-@protected List<ArticleListItem> sse_decode_list_article_list_item(SseDeserializer deserializer);
+  @protected
+  ReaderError sse_decode_reader_error(SseDeserializer deserializer);
 
-@protected List<Feed> sse_decode_list_feed(SseDeserializer deserializer);
+  @protected
+  ReaderSnapshot sse_decode_reader_snapshot(SseDeserializer deserializer);
 
-@protected Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+  @protected
+  int sse_decode_u_8(SseDeserializer deserializer);
 
-@protected String? sse_decode_opt_String(SseDeserializer deserializer);
+  @protected
+  void sse_decode_unit(SseDeserializer deserializer);
 
-@protected ReaderError sse_decode_reader_error(SseDeserializer deserializer);
+  @protected
+  void sse_encode_String(String self, SseSerializer serializer);
 
-@protected ReaderSnapshot sse_decode_reader_snapshot(SseDeserializer deserializer);
+  @protected
+  void sse_encode_article(Article self, SseSerializer serializer);
 
-@protected int sse_decode_u_8(SseDeserializer deserializer);
+  @protected
+  void sse_encode_article_list_item(
+    ArticleListItem self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_decode_unit(SseDeserializer deserializer);
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
 
-@protected void sse_encode_String(String self, SseSerializer serializer);
+  @protected
+  void sse_encode_box_autoadd_feed_draft(
+    FeedDraft self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_article(Article self, SseSerializer serializer);
+  @protected
+  void sse_encode_feed(Feed self, SseSerializer serializer);
 
-@protected void sse_encode_article_list_item(ArticleListItem self, SseSerializer serializer);
+  @protected
+  void sse_encode_feed_draft(FeedDraft self, SseSerializer serializer);
 
-@protected void sse_encode_bool(bool self, SseSerializer serializer);
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
-@protected void sse_encode_box_autoadd_feed_draft(FeedDraft self, SseSerializer serializer);
+  @protected
+  void sse_encode_import_feed_result(
+    ImportFeedResult self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_feed(Feed self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_article(List<Article> self, SseSerializer serializer);
 
-@protected void sse_encode_feed_draft(FeedDraft self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_article_list_item(
+    List<ArticleListItem> self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_i_32(int self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_feed(List<Feed> self, SseSerializer serializer);
 
-@protected void sse_encode_import_feed_result(ImportFeedResult self, SseSerializer serializer);
+  @protected
+  void sse_encode_list_prim_u_8_strict(
+    Uint8List self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_article(List<Article> self, SseSerializer serializer);
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
 
-@protected void sse_encode_list_article_list_item(List<ArticleListItem> self, SseSerializer serializer);
+  @protected
+  void sse_encode_reader_error(ReaderError self, SseSerializer serializer);
 
-@protected void sse_encode_list_feed(List<Feed> self, SseSerializer serializer);
+  @protected
+  void sse_encode_reader_snapshot(
+    ReaderSnapshot self,
+    SseSerializer serializer,
+  );
 
-@protected void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer);
+  @protected
+  void sse_encode_u_8(int self, SseSerializer serializer);
 
-@protected void sse_encode_opt_String(String? self, SseSerializer serializer);
-
-@protected void sse_encode_reader_error(ReaderError self, SseSerializer serializer);
-
-@protected void sse_encode_reader_snapshot(ReaderSnapshot self, SseSerializer serializer);
-
-@protected void sse_encode_u_8(int self, SseSerializer serializer);
-
-@protected void sse_encode_unit(void self, SseSerializer serializer);
-                }
-                
-
+  @protected
+  void sse_encode_unit(void self, SseSerializer serializer);
+}
 
 // Section: wire_class
 
 class RustLibWire implements BaseWire {
-            RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+  RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+}
 
-            
-        }
-        @JS('wasm_bindgen') external RustLibWasmModule get wasmModule;
+@JS('wasm_bindgen')
+external RustLibWasmModule get wasmModule;
 
-        @JS() @anonymous extension type RustLibWasmModule._(JSObject _) implements JSObject {
-            
-        }
-        
+@JS()
+@anonymous
+extension type RustLibWasmModule._(JSObject _) implements JSObject {}

@@ -46,10 +46,18 @@ flutter run -d <android-device-id>
 
 ### Web
 
+Rust / FRB code changes need a web artifact rebuild before running Flutter on web:
+
+```bash
+./tools/rebuild-web
+```
+
 本地调试：
 
 ```bash
-flutter run -d web-server
+flutter run -d web-server \
+  --web-header=Cross-Origin-Opener-Policy=same-origin \
+  --web-header=Cross-Origin-Embedder-Policy=require-corp
 ```
 
 Chrome 调试：
@@ -63,6 +71,7 @@ flutter run -d chrome \
 生产构建：
 
 ```bash
+./tools/rebuild-web
 flutter build web
 ```
 
