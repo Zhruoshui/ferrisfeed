@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "--version" ]]; then
+  echo "Flutter 3.12.1 • channel stable • https://github.com/flutter/flutter.git"
+  exit 0
+fi
+
+exec /home/ruoshui/Documents/flutter/flutter/bin/flutter "$@"
