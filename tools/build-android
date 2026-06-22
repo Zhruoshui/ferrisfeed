@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+flutter_bin="${FLUTTER_BIN:-$repo_root/tools/flutter}"
+
+"$flutter_bin" pub get
+"$flutter_bin" build apk --release "$@"
+"$flutter_bin" build appbundle --release "$@"
+
+echo
+echo "Android artifacts:"
+for artifact_dir in \
+  "$repo_root/build/app/outputs/flutter-apk" \
+  "$repo_root/build/app/outputs/apk/release" \
+  "$repo_root/build/app/outputs/bundle/release"; do
+  if [[ -d "$artifact_dir" ]]; then
+    find "$artifact_dir" -maxdepth 1 -type f \( -name "app-release*.apk" -o -name "*.aab" \) -print
+  fi
+done | sort

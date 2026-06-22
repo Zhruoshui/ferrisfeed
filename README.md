@@ -44,6 +44,104 @@ flutter emulators --launch <id>
 flutter run -d <android-device-id>
 ```
 
+## 本地打包
+
+本地脚本默认使用 `tools/flutter`。如需指定其他 Flutter 可执行文件，可设置 `FLUTTER_BIN=/path/to/flutter`。
+
+### Android
+
+构建 release APK 和 release AAB：
+
+```bash
+./tools/build-android
+```
+
+可追加 Flutter build 参数，例如：
+
+```bash
+./tools/build-android --build-name 1.0.0 --build-number 1
+```
+
+产物位置：
+
+- APK: `build/app/outputs/flutter-apk/app-release.apk`
+- Unsigned APK copy, when signing is not configured: `build/app/outputs/apk/release/app-release-unsigned.apk`
+- AAB: `build/app/outputs/bundle/release/`
+
+Release 签名是可选启用的。本地需要正式签名时：
+
+```bash
+cp android/key.properties.example android/key.properties
+```
+
+然后编辑 `android/key.properties`，并把 keystore 文件放到对应的 `storeFile` 路径。`android/key.properties`、`*.jks`、`*.keystore` 已被 `android/.gitignore` 忽略，不要提交签名材料。
+
+也可以使用环境变量启用签名：
+
+```bash
+ANDROID_KEYSTORE_PATH=/absolute/path/to/upload-keystore.jks \
+ANDROID_KEYSTORE_PASSWORD=... \
+ANDROID_KEY_ALIAS=upload \
+ANDROID_KEY_PASSWORD=... \
+./tools/build-android
+```
+
+如果没有配置签名材料，脚本仍会构建 release artifacts，但不会把 release 构建绑定到 debug key。
+
+### Linux
+
+构建 Flutter Linux release bundle，并压缩为 tarball：
+
+```bash
+./tools/build-linux-bundle
+```
+
+默认产物：
+
+```bash
+dist/rss_reader-linux-x64.tar.gz
+```
+
+可通过环境变量调整输出目录和文件名：
+
+```bash
+DIST_DIR=dist LINUX_ARCHIVE_NAME=rss_reader-linux.tar.gz ./tools/build-linux-bundle
+```
+
+Linux 本地打包需要 Flutter Linux 桌面构建依赖，例如 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`，以及本项目 Rust/Cargo 构建环境。
+
+### Linux AppImage
+
+构建 AppImage 需要额外提供 `appimagetool`：
+
+```bash
+./tools/build-linux-appimage
+```
+
+如果 `appimagetool` 不在 `PATH` 中，可显式指定：
+
+```bash
+APPIMAGETOOL=/path/to/appimagetool ./tools/build-linux-appimage
+```
+
+默认产物：
+
+```bash
+dist/RSS_Reader-x86_64.AppImage
+```
+
+可通过环境变量调整输出文件名：
+
+```bash
+APPIMAGE_NAME=RSS_Reader.AppImage ./tools/build-linux-appimage
+```
+
+脚本会复用 `./tools/build-linux-bundle`，然后生成 AppDir 并调用 `appimagetool`。Omarchy / Arch 上运行 AppImage 时，如果缺少 FUSE 支持，可安装：
+
+```bash
+omarchy pkg install fuse2
+```
+
 ### Web
 
 Rust / FRB code changes need a web artifact rebuild before running Flutter on web:

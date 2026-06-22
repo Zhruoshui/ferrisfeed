@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+flutter_bin="${FLUTTER_BIN:-$repo_root/tools/flutter}"
+dist_dir="${DIST_DIR:-dist}"
+archive_name="${LINUX_ARCHIVE_NAME:-rss_reader-linux-x64.tar.gz}"
+bundle_dir="$repo_root/build/linux/x64/release/bundle"
+archive_path="$repo_root/$dist_dir/$archive_name"
+
+"$flutter_bin" pub get
+"$flutter_bin" build linux --release "$@"
+
+if [[ ! -d "$bundle_dir" ]]; then
+  echo "Expected Linux bundle directory not found: $bundle_dir" >&2
+  exit 1
+fi
+
+mkdir -p "$repo_root/$dist_dir"
+rm -f "$archive_path"
+tar -C "$repo_root/build/linux/x64/release" -czf "$archive_path" bundle
+
+echo
+echo "Linux bundle archive:"
+echo "$archive_path"
