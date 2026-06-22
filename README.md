@@ -75,6 +75,40 @@ flutter run -d chrome \
 flutter build web
 ```
 
+### Web Docker
+
+Build a local Web image:
+
+```bash
+./tools/build-web-image
+```
+
+Run the image locally on `http://127.0.0.1:8080`:
+
+```bash
+./tools/run-web-image
+```
+
+Use a different local port or image tag if needed:
+
+```bash
+./tools/build-web-image my-rss-reader-web
+./tools/run-web-image 9090 my-rss-reader-web
+```
+
+The containerized nginx runtime serves the built Flutter Web bundle with:
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+
+This prevents the FRB Web worker / wasm initialization regressions seen during local debugging and deployment verification.
+
+Important limitation:
+
+- Docker fixes build reproducibility and response headers.
+- It does **not** fix browser-side RSS feed CORS restrictions.
+- The current Web app fetches feed URLs directly from the browser in `ReaderRepository`, so some feeds may still fail on Web even if the container is configured correctly.
+
 ## 验证
 
 Rust:

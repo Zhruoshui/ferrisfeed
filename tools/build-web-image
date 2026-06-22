@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+image_tag="${1:-rss_reader-web}"
+
+docker build -f Dockerfile.web -t "$image_tag" .

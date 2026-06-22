@@ -1,0 +1,14 @@
+.git
+.agents
+.claude
+.codex
+.opencode
+.trellis
+build
+.dart_tool
+.flutter-plugins-dependencies
+rust/target
+web/pkg
+**/*.iml
+**/.DS_Store
+doc

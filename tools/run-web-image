@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+host_port="${1:-8080}"
+image_tag="${2:-rss_reader-web}"
+
+docker run --rm -p "${host_port}:80" "$image_tag"
