@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" == "--version" ]]; then
-  echo "Flutter 3.12.1 • channel stable • https://github.com/flutter/flutter.git"
-  exit 0
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+fvm_flutter="$repo_root/.fvm/flutter_sdk/bin/flutter"
+
+if [[ -x "$fvm_flutter" ]]; then
+  exec "$fvm_flutter" "$@"
 fi
 
-exec /home/ruoshui/Documents/flutter/flutter/bin/flutter "$@"
+if command -v flutter >/dev/null 2>&1; then
+  exec flutter "$@"
+fi
+
+echo "Flutter SDK not found. Run 'fvm use' or install Flutter on PATH." >&2
+exit 127

@@ -5,13 +5,13 @@
 Pod::Spec.new do |s|
   s.name             = 'rust_lib_rss_reader'
   s.version          = '0.0.1'
-  s.summary          = 'A new Flutter FFI plugin project.'
+  s.summary          = 'FerrisFeed Rust bridge library.'
   s.description      = <<-DESC
-A new Flutter FFI plugin project.
+FerrisFeed Rust bridge library.
                        DESC
   s.homepage         = 'http://example.com'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = 'FerrisFeed Contributors'
 
   # This will ensure the source files in Classes/ are included in the native
   # builds of apps using this FFI plugin. Podspec does not support relative
