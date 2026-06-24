@@ -52,3 +52,6 @@ app.*.map.json
 .codex
 .trellis
 .opencode
+
+# FVM Version Cache
+.fvm/
