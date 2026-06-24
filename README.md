@@ -1,142 +1,217 @@
-# RSS Reader
+# FerrisFeed
 
-一个基于 `Flutter + Rust + flutter_rust_bridge` 的跨平台 RSS Reader MVP。
+<p align="center">
+  <img src="images/logo.png" alt="FerrisFeed logo" width="420">
+</p>
+
+<p align="center">
+  中文 | <a href="README.en.md">English</a>
+</p>
+
+FerrisFeed 是一个基于 Flutter、Rust 和 `flutter_rust_bridge` 构建的跨平台
+RSS / Atom 阅读器。Flutter 负责界面、平台能力和本地交互，Rust 负责 feed
+领域模型、状态流转和 RSS / Atom XML 解析。
 
 ## 当前能力
 
 - 手动添加 RSS / Atom feed
-- Feed 列表
-- 文章列表
-- 文章详情
-- 已读 / 未读切换
-- 星标文章视图
+- 浏览订阅列表
+- 浏览文章列表
+- 查看文章详情
+- 切换已读 / 未读状态
+- 星标文章
 - 刷新 feed
 - 本地持久化订阅和文章状态
 
 ## 架构
 
-- Flutter:
-  - UI / 导航 / 交互
-  - 网络请求
-  - 本地持久化
-- Rust:
-  - Reader domain model
-  - Snapshot 状态变更
-  - RSS / Atom XML 解析
-- Flutter 与 Rust 之间通过 `flutter_rust_bridge` 通信
-- 跨层契约采用 `snapshot_json`：
-  - Flutter 保存快照字符串
-  - Rust 接收快照并返回新的快照
+| 层 | 职责 |
+| --- | --- |
+| Flutter | UI、导航、交互、HTTP 请求、本地持久化 |
+| Rust | Reader 领域模型、snapshot 状态流转、RSS / Atom XML 解析 |
+| flutter_rust_bridge | Dart / Rust 边界和生成绑定 |
 
-## 运行
+跨层状态契约是 `snapshot_json`：
 
-### Linux
+- Flutter 保存 snapshot 字符串。
+- Rust 接收旧 snapshot，并返回新的 snapshot。
+
+## 工具链
+
+项目使用 FVM 锁定 Flutter 版本：
 
 ```bash
-flutter run -d linux
+fvm flutter --version
 ```
+
+当前版本：
+
+```text
+Flutter 3.44.1
+Dart 3.12.1
+```
+
+直接运行 Flutter 命令时，优先使用：
+
+```bash
+fvm flutter ...
+```
+
+项目打包脚本如果支持 `FLUTTER_BIN`，需要传入 FVM 管理的 Flutter 可执行文件路径：
+
+```bash
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter <script>
+```
+
+## 本地运行
+
+安装依赖：
+
+```bash
+fvm flutter pub get
+```
+
+运行 Linux 桌面版：
+
+```bash
+fvm flutter run -d linux
+```
+
+运行 Android：
+
+```bash
+fvm flutter devices
+fvm flutter run -d <android-device-id>
+```
+
+运行 Web server，并带上 FRB Web worker / wasm 所需的跨源隔离响应头：
+
+```bash
+./tools/rebuild-web
+fvm flutter run -d web-server \
+  --web-header=Cross-Origin-Opener-Policy=same-origin \
+  --web-header=Cross-Origin-Embedder-Policy=require-corp
+```
+
+## 验证
+
+Flutter：
+
+```bash
+fvm flutter analyze
+fvm flutter test
+```
+
+Rust：
+
+```bash
+cargo test --manifest-path rust/Cargo.toml --offline
+```
+
+## 构建与打包
 
 ### Android
 
-```bash
-flutter emulators
-flutter emulators --launch <id>
-flutter run -d <android-device-id>
-```
-
-## 本地打包
-
-本地脚本默认使用 `tools/flutter`。如需指定其他 Flutter 可执行文件，可设置 `FLUTTER_BIN=/path/to/flutter`。
-
-### Android
-
-构建 release APK 和 release AAB：
+使用 FVM 锁定的 SDK 构建 release APK 和 AAB：
 
 ```bash
-./tools/build-android
-```
-
-可追加 Flutter build 参数，例如：
-
-```bash
-./tools/build-android --build-name 1.0.0 --build-number 1
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter ./tools/build-android
 ```
 
 产物位置：
 
-- APK: `build/app/outputs/flutter-apk/app-release.apk`
-- Unsigned APK copy, when signing is not configured: `build/app/outputs/apk/release/app-release-unsigned.apk`
-- AAB: `build/app/outputs/bundle/release/`
+- `build/app/outputs/flutter-apk/app-release.apk`
+- `build/app/outputs/apk/release/app-release.apk`
+- `build/app/outputs/bundle/release/app-release.aab`
 
-Release 签名是可选启用的。本地需要正式签名时：
+可追加版本信息：
+
+```bash
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter \
+  ./tools/build-android --build-name 1.0.0 --build-number 1
+```
+
+当存在 `android/key.properties` 或对应环境变量时，release 签名会自动启用。
+本地签名文件已被 Git 忽略。
+
+配置本地签名：
 
 ```bash
 cp android/key.properties.example android/key.properties
 ```
 
-然后编辑 `android/key.properties`，并把 keystore 文件放到对应的 `storeFile` 路径。`android/key.properties`、`*.jks`、`*.keystore` 已被 `android/.gitignore` 忽略，不要提交签名材料。
+然后编辑 `android/key.properties`，并把 keystore 放到 `storeFile` 指向的位置。
 
-也可以使用环境变量启用签名：
+也可以使用环境变量签名：
 
 ```bash
 ANDROID_KEYSTORE_PATH=/absolute/path/to/upload-keystore.jks \
 ANDROID_KEYSTORE_PASSWORD=... \
 ANDROID_KEY_ALIAS=upload \
 ANDROID_KEY_PASSWORD=... \
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter \
 ./tools/build-android
 ```
 
-如果没有配置签名材料，脚本仍会构建 release artifacts，但不会把 release 构建绑定到 debug key。
+快速安装 debug 包到手机：
 
-### Linux
+```bash
+fvm flutter build apk --debug
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+```
+
+如果 `adb` 不在 `PATH` 中，请使用 Android SDK `platform-tools` 目录里的
+`adb` 可执行文件。
+
+### Linux Bundle
 
 构建 Flutter Linux release bundle，并压缩为 tarball：
 
 ```bash
-./tools/build-linux-bundle
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter ./tools/build-linux-bundle
 ```
 
 默认产物：
 
-```bash
+```text
 dist/rss_reader-linux-x64.tar.gz
 ```
 
-可通过环境变量调整输出目录和文件名：
+自定义输出：
 
 ```bash
-DIST_DIR=dist LINUX_ARCHIVE_NAME=rss_reader-linux.tar.gz ./tools/build-linux-bundle
+DIST_DIR=dist \
+LINUX_ARCHIVE_NAME=ferrisfeed-linux-x64.tar.gz \
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter \
+./tools/build-linux-bundle
 ```
 
-Linux 本地打包需要 Flutter Linux 桌面构建依赖，例如 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`，以及本项目 Rust/Cargo 构建环境。
+Linux 打包需要 Flutter Linux 桌面构建依赖，例如 `clang`、`cmake`、
+`ninja-build`、`pkg-config`、`libgtk-3-dev`，以及本项目 Rust / Cargo 环境。
 
 ### Linux AppImage
 
-构建 AppImage 需要额外提供 `appimagetool`：
+构建 AppImage：
 
 ```bash
-./tools/build-linux-appimage
-```
-
-如果 `appimagetool` 不在 `PATH` 中，可显式指定：
-
-```bash
-APPIMAGETOOL=/path/to/appimagetool ./tools/build-linux-appimage
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter ./tools/build-linux-appimage
 ```
 
 默认产物：
 
-```bash
+```text
 dist/RSS_Reader-x86_64.AppImage
 ```
 
-可通过环境变量调整输出文件名：
+如果 `appimagetool` 不在 `PATH` 中，可以显式指定：
 
 ```bash
-APPIMAGE_NAME=RSS_Reader.AppImage ./tools/build-linux-appimage
+APPIMAGETOOL=/path/to/appimagetool \
+FLUTTER_BIN=.fvm/flutter_sdk/bin/flutter \
+./tools/build-linux-appimage
 ```
 
-脚本会复用 `./tools/build-linux-bundle`，然后生成 AppDir 并调用 `appimagetool`。Omarchy / Arch 上运行 AppImage 时，如果缺少 FUSE 支持，可安装：
+Omarchy / Arch 上运行 AppImage 时，如果缺少 FUSE 2：
 
 ```bash
 omarchy pkg install fuse2
@@ -144,85 +219,52 @@ omarchy pkg install fuse2
 
 ### Web
 
-Rust / FRB code changes need a web artifact rebuild before running Flutter on web:
+Rust / FRB 相关代码变更后，验证 Web 前需要重建 Web artifacts：
 
 ```bash
 ./tools/rebuild-web
-```
-
-本地调试：
-
-```bash
-flutter run -d web-server \
-  --web-header=Cross-Origin-Opener-Policy=same-origin \
-  --web-header=Cross-Origin-Embedder-Policy=require-corp
-```
-
-Chrome 调试：
-
-```bash
-flutter run -d chrome \
-  --web-header=Cross-Origin-Opener-Policy=same-origin \
-  --web-header=Cross-Origin-Embedder-Policy=require-corp
-```
-
-生产构建：
-
-```bash
-./tools/rebuild-web
-flutter build web
+fvm flutter build web
 ```
 
 ### Web Docker
 
-Build a local Web image:
+构建本地 Web 镜像：
 
 ```bash
-./tools/build-web-image
+./tools/build-web-image ferrisfeed-web
 ```
 
-Run the image locally on `http://127.0.0.1:8080`:
+本地运行镜像：
 
 ```bash
-./tools/run-web-image
+./tools/run-web-image 8080 ferrisfeed-web
 ```
 
-Use a different local port or image tag if needed:
-
-```bash
-./tools/build-web-image my-rss-reader-web
-./tools/run-web-image 9090 my-rss-reader-web
-```
-
-The containerized nginx runtime serves the built Flutter Web bundle with:
+nginx runtime 会为 Flutter Web 提供：
 
 - `Cross-Origin-Opener-Policy: same-origin`
 - `Cross-Origin-Embedder-Policy: require-corp`
 
-This prevents the FRB Web worker / wasm initialization regressions seen during local debugging and deployment verification.
+这些响应头用于避免 FRB Web worker / wasm 初始化阶段的白屏问题。
 
-Important limitation:
+注意：Docker 构建不使用宿主机的 FVM。它通过 `Dockerfile.web` 里的
+`FLUTTER_REVISION` 固定 Flutter 版本，因此该 revision 需要与 `.fvmrc` 保持一致。
 
-- Docker fixes build reproducibility and response headers.
-- It does **not** fix browser-side RSS feed CORS restrictions.
-- The current Web app fetches feed URLs directly from the browser in `ReaderRepository`, so some feeds may still fail on Web even if the container is configured correctly.
+## Web 限制
 
-## 验证
+Docker 能提高构建可复现性并保证响应头，但不能解决浏览器侧 RSS feed CORS
+限制。当前 Web 应用直接在浏览器中请求 feed URL，因此即使 Docker runtime 配置正确，
+部分 feed 在 Web 端仍可能失败。
 
-Rust:
+## 维护提示
 
-```bash
-cargo test --manifest-path rust/Cargo.toml --offline
-```
-
-Flutter:
-
-```bash
-flutter analyze
-flutter test integration_test/simple_test.dart
-```
+- 提交 `.fvmrc`。
+- 不要提交 `.fvm/`、签名密钥、`android/key.properties`、`build/` 或 `dist/`。
+- Rust / FRB API 影响 Web 时，记得运行 `./tools/rebuild-web`。
+- 保持 `Dockerfile.web` 的 Flutter revision 与 `.fvmrc` 一致。
+- 妥善备份 Android release 签名材料；同一包名后续更新必须使用同一个 keystore。
 
 ## 参考
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- `doc/oksskolten` 仅作为产品交互参考
+- [Flutter documentation](https://docs.flutter.dev/)
+- [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge)
