@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/reader.dart';
@@ -88,6 +89,18 @@ class _ReaderHomeState extends State<ReaderHome> {
                         controller.canRemoveSelectedFeed &&
                         !controller.isWorking,
                     child: const Text('Remove current feed'),
+                  ),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.feedViewMode,
+                    enabled:
+                        controller.selectedFeed != null &&
+                        !controller.isWorking,
+                    child: const Text('Feed view mode'),
+                  ),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.defaultViewMode,
+                    enabled: !controller.isWorking,
+                    child: const Text('Default view mode'),
                   ),
                 ],
               ),
@@ -330,7 +343,77 @@ class _ReaderHomeState extends State<ReaderHome> {
           successMessage: 'Feed removed.',
         );
         return;
+      case _ReaderMenuAction.feedViewMode:
+        await _showFeedViewModeDialog(controller);
+        return;
+      case _ReaderMenuAction.defaultViewMode:
+        await _showDefaultViewModeDialog(controller);
+        return;
     }
+  }
+
+  Future<void> _showFeedViewModeDialog(ReaderController controller) async {
+    final feed = controller.selectedFeed;
+    if (feed == null) {
+      return;
+    }
+    final selected = await _pickViewMode(
+      title: 'View mode for ${feed.title}',
+      current: feed.articleViewMode,
+      includeGlobal: true,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    await _runGuarded(
+      () => controller.updateFeedViewMode(feed.id, selected),
+      successMessage: 'Feed view mode updated.',
+    );
+  }
+
+  Future<void> _showDefaultViewModeDialog(ReaderController controller) async {
+    final selected = await _pickViewMode(
+      title: 'Default view mode',
+      current: controller.appDefaultViewMode,
+      includeGlobal: false,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    controller.appDefaultViewMode = selected;
+    _showMessage('Default view mode updated.');
+  }
+
+  Future<ArticleViewMode?> _pickViewMode({
+    required String title,
+    required ArticleViewMode current,
+    required bool includeGlobal,
+  }) {
+    final modes = <ArticleViewMode>[
+      if (includeGlobal) ArticleViewMode.global,
+      ArticleViewMode.rendered,
+      ArticleViewMode.webpage,
+      ArticleViewMode.external_,
+    ];
+    return showDialog<ArticleViewMode>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: Text(title),
+          children: [
+            for (final mode in modes)
+              ListTile(
+                title: Text(_viewModeLabel(mode)),
+                subtitle: Text(_viewModeDescription(mode)),
+                trailing: mode == current
+                    ? const Icon(Icons.check)
+                    : const SizedBox.shrink(),
+                onTap: () => Navigator.of(context).pop(mode),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _openArticle(String articleId, {required bool pushRoute}) async {
@@ -338,7 +421,24 @@ class _ReaderHomeState extends State<ReaderHome> {
       await widget.controller.openArticle(articleId);
     });
 
-    if (!mounted || !pushRoute) {
+    if (!mounted) {
+      return;
+    }
+
+    // For external-mode feeds, opening an article means launching the system
+    // browser instead of navigating to an in-app detail view.
+    final article = widget.controller.selectedArticle;
+    if (article != null &&
+        widget.controller.effectiveViewModeForFeed(article.feedId) ==
+            ArticleViewMode.external_) {
+      final launched = await openInSystemBrowser(article.url);
+      if (mounted && !launched) {
+        _showMessage('Could not open the article in a browser.', isError: true);
+      }
+      return;
+    }
+
+    if (!pushRoute) {
       return;
     }
 
@@ -820,98 +920,197 @@ class _ArticleDetailPane extends StatelessWidget {
       return const _DetailEmptyState();
     }
 
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final effectiveMode = controller.effectiveViewModeForFeed(article.feedId);
+
+    // External mode never renders inline; the browser handles display.
+    if (effectiveMode == ArticleViewMode.external_) {
+      return _ExternalModeNotice(article: article);
+    }
+
+    final header = _ArticleDetailHeader(
+      controller: controller,
+      article: article,
+      showToolbar: showToolbar,
+      effectiveMode: effectiveMode,
+      onCopyLink: onCopyLink,
+      onToggleStar: onToggleStar,
+      onToggleRead: onToggleRead,
+    );
+
+    if (effectiveMode == ArticleViewMode.webpage) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (showToolbar)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                IconButton.filledTonal(
-                  tooltip: 'Copy article link',
-                  onPressed: onCopyLink,
-                  icon: const Icon(Icons.link),
-                ),
-                IconButton.filledTonal(
-                  tooltip: article.isStarred ? 'Remove star' : 'Star article',
-                  onPressed: onToggleStar,
-                  icon: Icon(
-                    article.isStarred ? Icons.star : Icons.star_outline,
-                  ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: article.isRead ? 'Mark unread' : 'Mark read',
-                  onPressed: onToggleRead,
-                  icon: Icon(
-                    article.isRead
-                        ? Icons.mark_email_unread_outlined
-                        : Icons.mark_email_read_outlined,
-                  ),
-                ),
-              ],
-            ),
-          if (showToolbar) const SizedBox(height: 20),
-          Text(
-            controller.feedTitleFor(article.feedId),
-            style: theme.textTheme.labelLarge,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+            child: header,
           ),
-          const SizedBox(height: 8),
-          Text(article.title, style: theme.textTheme.headlineMedium),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              if (article.author.isNotEmpty)
-                Text(article.author, style: theme.textTheme.bodyMedium),
-              Text(
-                _formatTimestamp(article.publishedAt),
-                style: theme.textTheme.bodyMedium,
-              ),
-              Text(
-                article.isRead ? 'Read' : 'Unread',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SelectableText(
-            article.url,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
+          const Divider(height: 1),
+          Expanded(
+            child: ArticleDetailBody(
+              article: article,
+              effectiveMode: effectiveMode,
+              feedTitle: controller.feedTitleFor(article.feedId),
+              header: const SizedBox.shrink(),
             ),
-          ),
-          const SizedBox(height: 24),
-          if (_plainText(article.summary).isNotEmpty) ...[
-            Text(
-              _plainText(article.summary),
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 20),
-          ],
-          Text(
-            _detailContent(article),
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
           ),
         ],
+      );
+    }
+
+    return ArticleDetailBody(
+      article: article,
+      effectiveMode: effectiveMode,
+      feedTitle: controller.feedTitleFor(article.feedId),
+      header: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [header, const SizedBox(height: 4)],
+        ),
       ),
     );
   }
+}
 
-  String _detailContent(Article article) {
-    final content = _plainText(article.content);
-    if (content.isNotEmpty) {
-      return content;
-    }
-    final summary = _plainText(article.summary);
-    if (summary.isNotEmpty) {
-      return summary;
-    }
-    return 'This article does not include body content in the feed payload.';
+class _ArticleDetailHeader extends StatelessWidget {
+  const _ArticleDetailHeader({
+    required this.controller,
+    required this.article,
+    required this.showToolbar,
+    required this.effectiveMode,
+    required this.onCopyLink,
+    required this.onToggleStar,
+    required this.onToggleRead,
+  });
+
+  final ReaderController controller;
+  final Article article;
+  final bool showToolbar;
+  final ArticleViewMode effectiveMode;
+  final Future<void> Function() onCopyLink;
+  final Future<void> Function() onToggleStar;
+  final Future<void> Function() onToggleRead;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showToolbar)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Copy article link',
+                onPressed: onCopyLink,
+                icon: const Icon(Icons.link),
+              ),
+              IconButton.filledTonal(
+                tooltip: article.isStarred ? 'Remove star' : 'Star article',
+                onPressed: onToggleStar,
+                icon: Icon(
+                  article.isStarred ? Icons.star : Icons.star_outline,
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: article.isRead ? 'Mark unread' : 'Mark read',
+                onPressed: onToggleRead,
+                icon: Icon(
+                  article.isRead
+                      ? Icons.mark_email_unread_outlined
+                      : Icons.mark_email_read_outlined,
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Open in browser',
+                onPressed: () => openInSystemBrowser(article.url),
+                icon: const Icon(Icons.open_in_new),
+              ),
+            ],
+          ),
+        if (showToolbar) const SizedBox(height: 20),
+        Text(
+          controller.feedTitleFor(article.feedId),
+          style: theme.textTheme.labelLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(article.title, style: theme.textTheme.headlineMedium),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            if (article.author.isNotEmpty)
+              Text(article.author, style: theme.textTheme.bodyMedium),
+            Text(
+              _formatTimestamp(article.publishedAt),
+              style: theme.textTheme.bodyMedium,
+            ),
+            Text(
+              article.isRead ? 'Read' : 'Unread',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SelectableText(
+          article.url,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExternalModeNotice extends StatelessWidget {
+  const _ExternalModeNotice({required this.article});
+
+  final Article article;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.open_in_new,
+                size: 48,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                article.title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This feed opens articles in your browser.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () => openInSystemBrowser(article.url),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open in browser'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1021,7 +1220,33 @@ class _CountPill extends StatelessWidget {
   }
 }
 
-enum _ReaderMenuAction { clearRead, removeFeed }
+enum _ReaderMenuAction { clearRead, removeFeed, feedViewMode, defaultViewMode }
+
+String _viewModeLabel(ArticleViewMode mode) {
+  switch (mode) {
+    case ArticleViewMode.global:
+      return 'Follow default';
+    case ArticleViewMode.rendered:
+      return 'Rendered content';
+    case ArticleViewMode.webpage:
+      return 'In-app webpage';
+    case ArticleViewMode.external_:
+      return 'System browser';
+  }
+}
+
+String _viewModeDescription(ArticleViewMode mode) {
+  switch (mode) {
+    case ArticleViewMode.global:
+      return 'Use the app default view mode.';
+    case ArticleViewMode.rendered:
+      return 'Render feed article content in the app.';
+    case ArticleViewMode.webpage:
+      return 'Open the article URL in an embedded webpage.';
+    case ArticleViewMode.external_:
+      return 'Open the article in the system browser.';
+  }
+}
 
 String _formatTimestamp(String? value) {
   final parsed = value == null ? null : DateTime.tryParse(value);

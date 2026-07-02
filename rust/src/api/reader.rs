@@ -10,6 +10,21 @@ pub struct ReaderSnapshot {
     pub last_updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ArticleViewMode {
+    Global,
+    Webpage,
+    Rendered,
+    External,
+}
+
+impl Default for ArticleViewMode {
+    fn default() -> Self {
+        Self::Global
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Feed {
     pub id: String,
@@ -20,6 +35,8 @@ pub struct Feed {
     pub unread_count: i32,
     pub article_count: i32,
     pub last_synced_at: Option<String>,
+    #[serde(default)]
+    pub article_view_mode: ArticleViewMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,6 +210,7 @@ pub fn add_feed(
         unread_count: 0,
         article_count: 0,
         last_synced_at: None,
+        article_view_mode: ArticleViewMode::default(),
     });
     snapshot.last_updated_at = Some(now_iso_string());
     sort_feeds(&mut snapshot.feeds);
@@ -212,6 +230,23 @@ pub fn remove_feed(
     }
     snapshot.articles.retain(|article| article.feed_id != feed_id);
     recalculate_feed_counts(&mut snapshot);
+    snapshot.last_updated_at = Some(now_iso_string());
+    Ok(serialize_snapshot(&snapshot))
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn set_feed_view_mode(
+    snapshot_json: String,
+    feed_id: String,
+    view_mode: ArticleViewMode,
+) -> Result<String, ReaderError> {
+    let mut snapshot = decode_snapshot(&snapshot_json)?;
+    let feed = snapshot
+        .feeds
+        .iter_mut()
+        .find(|feed| feed.id == feed_id)
+        .ok_or_else(|| ReaderError::not_found("Feed not found"))?;
+    feed.article_view_mode = view_mode;
     snapshot.last_updated_at = Some(now_iso_string());
     Ok(serialize_snapshot(&snapshot))
 }
@@ -298,6 +333,7 @@ fn import_feed_from_xml_sync(
             unread_count: 0,
             article_count: 0,
             last_synced_at: Some(now_iso_string()),
+            article_view_mode: ArticleViewMode::default(),
         });
         feed_id
     };
@@ -689,5 +725,53 @@ mod tests {
         assert_eq!(cleared.articles.len(), 1);
         assert_eq!(cleared.feeds[0].article_count, 1);
         assert_eq!(cleared.feeds[0].unread_count, 1);
+    }
+
+    #[test]
+    fn imported_feed_defaults_to_global_view_mode() {
+        let import_result = import_feed_from_xml_sync(
+            empty_reader_snapshot_json(),
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        assert_eq!(import_result.feed.article_view_mode, ArticleViewMode::Global);
+    }
+
+    #[test]
+    fn set_feed_view_mode_persists_and_survives_roundtrip() {
+        let import_result = import_feed_from_xml_sync(
+            empty_reader_snapshot_json(),
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        let feed_id = import_result.feed.id.clone();
+
+        let updated_snapshot = set_feed_view_mode(
+            import_result.snapshot_json,
+            feed_id.clone(),
+            ArticleViewMode::Rendered,
+        )
+        .unwrap();
+
+        let snapshot = decode_reader_snapshot(updated_snapshot).unwrap();
+        let feed = snapshot
+            .feeds
+            .iter()
+            .find(|feed| feed.id == feed_id)
+            .unwrap();
+        assert_eq!(feed.article_view_mode, ArticleViewMode::Rendered);
+    }
+
+    #[test]
+    fn set_feed_view_mode_rejects_missing_feed() {
+        let error = set_feed_view_mode(
+            empty_reader_snapshot_json(),
+            "missing".to_owned(),
+            ArticleViewMode::Webpage,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "not_found");
     }
 }

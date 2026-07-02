@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `clean_xml_text`, `compare_optional_dates`, `decode_snapshot`, `extract_atom_link`, `extract_attribute`, `extract_blocks`, `extract_first_tag`, `extract_nested_author_name`, `extract_tag`, `import_feed_from_xml_sync`, `invalid_input`, `non_empty_or`, `normalize_date_string`, `normalize_optional_url`, `normalize_url`, `not_found`, `now_iso_string`, `parse_atom`, `parse_feed_xml`, `parse_rss`, `parse`, `recalculate_feed_counts`, `serialize_snapshot`, `sort_articles`, `sort_feeds`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArticleDraft`, `ParsedFeedPayload`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 String emptyReaderSnapshotJson() =>
     RustLib.instance.api.crateApiReaderEmptyReaderSnapshotJson();
@@ -45,6 +45,16 @@ String removeFeed({required String snapshotJson, required String feedId}) =>
       snapshotJson: snapshotJson,
       feedId: feedId,
     );
+
+String setFeedViewMode({
+  required String snapshotJson,
+  required String feedId,
+  required ArticleViewMode viewMode,
+}) => RustLib.instance.api.crateApiReaderSetFeedViewMode(
+  snapshotJson: snapshotJson,
+  feedId: feedId,
+  viewMode: viewMode,
+);
 
 String markArticleRead({
   required String snapshotJson,
@@ -181,6 +191,16 @@ class ArticleListItem {
           isStarred == other.isStarred;
 }
 
+enum ArticleViewMode {
+  global,
+  webpage,
+  rendered,
+  external_;
+
+  static Future<ArticleViewMode> default_() =>
+      RustLib.instance.api.crateApiReaderArticleViewModeDefault();
+}
+
 class Feed {
   final String id;
   final String title;
@@ -190,6 +210,7 @@ class Feed {
   final int unreadCount;
   final int articleCount;
   final String? lastSyncedAt;
+  final ArticleViewMode articleViewMode;
 
   const Feed({
     required this.id,
@@ -200,6 +221,7 @@ class Feed {
     required this.unreadCount,
     required this.articleCount,
     this.lastSyncedAt,
+    required this.articleViewMode,
   });
 
   @override
@@ -211,7 +233,8 @@ class Feed {
       description.hashCode ^
       unreadCount.hashCode ^
       articleCount.hashCode ^
-      lastSyncedAt.hashCode;
+      lastSyncedAt.hashCode ^
+      articleViewMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -225,7 +248,8 @@ class Feed {
           description == other.description &&
           unreadCount == other.unreadCount &&
           articleCount == other.articleCount &&
-          lastSyncedAt == other.lastSyncedAt;
+          lastSyncedAt == other.lastSyncedAt &&
+          articleViewMode == other.articleViewMode;
 }
 
 class FeedDraft {

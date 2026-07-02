@@ -33,6 +33,44 @@ class ReaderController extends ChangeNotifier {
   bool _isWorking = false;
   bool _isLoaded = false;
 
+  /// App-wide default mode used when a feed is configured as
+  /// [ArticleViewMode.global]. `rendered` keeps content in-app by default.
+  ArticleViewMode _appDefaultViewMode = ArticleViewMode.rendered;
+
+  ArticleViewMode get appDefaultViewMode => _appDefaultViewMode;
+
+  set appDefaultViewMode(ArticleViewMode mode) {
+    final resolved = mode == ArticleViewMode.global
+        ? ArticleViewMode.rendered
+        : mode;
+    if (resolved == _appDefaultViewMode) {
+      return;
+    }
+    _appDefaultViewMode = resolved;
+    notifyListeners();
+  }
+
+  /// Resolves the effective view mode for [feedId], collapsing `global` to the
+  /// current app default. Never returns [ArticleViewMode.global].
+  ArticleViewMode effectiveViewModeForFeed(String feedId) {
+    final feed = _findFeed(feedId);
+    final feedMode = feed?.articleViewMode ?? ArticleViewMode.global;
+    if (feedMode == ArticleViewMode.global) {
+      return _appDefaultViewMode;
+    }
+    return feedMode;
+  }
+
+  /// Effective view mode for the currently selected article, or `null` when no
+  /// article is selected.
+  ArticleViewMode? get selectedArticleEffectiveMode {
+    final article = _selectedArticle;
+    if (article == null) {
+      return null;
+    }
+    return effectiveViewModeForFeed(article.feedId);
+  }
+
   ReaderSnapshot get snapshot => _snapshot;
   List<Feed> get feeds => _snapshot.feeds;
   List<ArticleListItem> get articles => _articles;
@@ -180,6 +218,20 @@ class ReaderController extends ChangeNotifier {
       _selectedFeedId = null;
       _showStarredOnly = false;
       _selectedArticleId = null;
+      await _replaceSnapshot(nextSnapshotJson);
+    } finally {
+      _setWorking(false);
+    }
+  }
+
+  Future<void> updateFeedViewMode(String feedId, ArticleViewMode mode) async {
+    _setWorking(true);
+    try {
+      final nextSnapshotJson = setFeedViewMode(
+        snapshotJson: _snapshotJson,
+        feedId: feedId,
+        viewMode: mode,
+      );
       await _replaceSnapshot(nextSnapshotJson);
     } finally {
       _setWorking(false);

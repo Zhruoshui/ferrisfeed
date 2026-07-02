@@ -29,6 +29,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArticleListItem dco_decode_article_list_item(dynamic raw);
 
   @protected
+  ArticleViewMode dco_decode_article_view_mode(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
@@ -81,6 +84,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArticleListItem sse_decode_article_list_item(SseDeserializer deserializer);
+
+  @protected
+  ArticleViewMode sse_decode_article_view_mode(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
@@ -138,6 +144,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_article_list_item(
     ArticleListItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_article_view_mode(
+    ArticleViewMode self,
     SseSerializer serializer,
   );
 

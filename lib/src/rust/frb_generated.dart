@@ -67,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1008744160;
+  int get rustContentHash => -1706832495;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -83,6 +83,8 @@ abstract class RustLibApi extends BaseApi {
     required String snapshotJson,
     required FeedDraft draft,
   });
+
+  Future<ArticleViewMode> crateApiReaderArticleViewModeDefault();
 
   String crateApiReaderClearAllReadArticles({required String snapshotJson});
 
@@ -122,6 +124,12 @@ abstract class RustLibApi extends BaseApi {
   String crateApiReaderRemoveFeed({
     required String snapshotJson,
     required String feedId,
+  });
+
+  String crateApiReaderSetFeedViewMode({
+    required String snapshotJson,
+    required String feedId,
+    required ArticleViewMode viewMode,
   });
 
   String crateApiReaderToggleArticleStar({
@@ -168,13 +176,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<ArticleViewMode> crateApiReaderArticleViewModeDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_article_view_mode,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiReaderArticleViewModeDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiReaderArticleViewModeDefaultConstMeta =>
+      const TaskConstMeta(debugName: "article_view_mode_default", argNames: []);
+
+  @override
   String crateApiReaderClearAllReadArticles({required String snapshotJson}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -202,7 +237,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_reader_snapshot,
@@ -227,7 +262,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -257,7 +292,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(articleId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_article,
@@ -282,7 +317,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -314,7 +349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -344,7 +379,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -375,7 +410,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(snapshotJson, serializer);
           sse_encode_opt_String(feedId, serializer);
           sse_encode_bool(showStarredOnly, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_article_list_item,
@@ -406,7 +441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(articleId, serializer);
           sse_encode_bool(isRead, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -436,7 +471,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(feedId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -455,6 +490,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  String crateApiReaderSetFeedViewMode({
+    required String snapshotJson,
+    required String feedId,
+    required ArticleViewMode viewMode,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(snapshotJson, serializer);
+          sse_encode_String(feedId, serializer);
+          sse_encode_article_view_mode(viewMode, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_reader_error,
+        ),
+        constMeta: kCrateApiReaderSetFeedViewModeConstMeta,
+        argValues: [snapshotJson, feedId, viewMode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiReaderSetFeedViewModeConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_feed_view_mode",
+        argNames: ["snapshotJson", "feedId", "viewMode"],
+      );
+
+  @override
   String crateApiReaderToggleArticleStar({
     required String snapshotJson,
     required String articleId,
@@ -465,7 +532,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(articleId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -529,6 +596,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ArticleViewMode dco_decode_article_view_mode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ArticleViewMode.values[raw as int];
+  }
+
+  @protected
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
@@ -544,8 +617,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Feed dco_decode_feed(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return Feed(
       id: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -555,6 +628,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       unreadCount: dco_decode_i_32(arr[5]),
       articleCount: dco_decode_i_32(arr[6]),
       lastSyncedAt: dco_decode_opt_String(arr[7]),
+      articleViewMode: dco_decode_article_view_mode(arr[8]),
     );
   }
 
@@ -716,6 +790,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ArticleViewMode sse_decode_article_view_mode(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ArticleViewMode.values[inner];
+  }
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
@@ -738,6 +819,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_unreadCount = sse_decode_i_32(deserializer);
     var var_articleCount = sse_decode_i_32(deserializer);
     var var_lastSyncedAt = sse_decode_opt_String(deserializer);
+    var var_articleViewMode = sse_decode_article_view_mode(deserializer);
     return Feed(
       id: var_id,
       title: var_title,
@@ -747,6 +829,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       unreadCount: var_unreadCount,
       articleCount: var_articleCount,
       lastSyncedAt: var_lastSyncedAt,
+      articleViewMode: var_articleViewMode,
     );
   }
 
@@ -910,6 +993,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_article_view_mode(
+    ArticleViewMode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
@@ -935,6 +1027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.unreadCount, serializer);
     sse_encode_i_32(self.articleCount, serializer);
     sse_encode_opt_String(self.lastSyncedAt, serializer);
+    sse_encode_article_view_mode(self.articleViewMode, serializer);
   }
 
   @protected

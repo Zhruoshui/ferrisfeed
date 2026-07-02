@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:rss_reader/main.dart';
+import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/reader.dart';
@@ -38,6 +39,58 @@ void main() {
     expect(find.text('Rust RSS Reader'), findsOneWidget);
     expect(find.text('Example Feed'), findsWidgets);
     expect(find.text('First story'), findsOneWidget);
+  });
+
+  test('feed view mode resolves global to app default and persists', () async {
+    final controller = ReaderController(
+      repository: ReaderRepository.memory(
+        httpClient: _FakeHttpClient(
+          responses: {
+            Uri.parse('https://example.com/feed.xml'): http.Response.bytes(
+              Uint8List.fromList(_sampleFeed.codeUnits),
+              200,
+              headers: const {'content-type': 'application/rss+xml'},
+            ),
+          },
+        ),
+      ),
+    );
+
+    await controller.load();
+    await controller.addFeed('https://example.com/feed.xml');
+
+    final feedId = controller.feeds.first.id;
+
+    // Default: feed mode is global, app default is rendered.
+    expect(controller.feeds.first.articleViewMode, ArticleViewMode.global);
+    expect(
+      controller.effectiveViewModeForFeed(feedId),
+      ArticleViewMode.rendered,
+    );
+
+    // App default changes flow through global feeds.
+    controller.appDefaultViewMode = ArticleViewMode.external_;
+    expect(
+      controller.effectiveViewModeForFeed(feedId),
+      ArticleViewMode.external_,
+    );
+
+    // An explicit feed mode overrides the app default and persists.
+    await controller.updateFeedViewMode(feedId, ArticleViewMode.webpage);
+    expect(controller.feeds.first.articleViewMode, ArticleViewMode.webpage);
+    expect(
+      controller.effectiveViewModeForFeed(feedId),
+      ArticleViewMode.webpage,
+    );
+  });
+
+  test('only http/https URLs are treated as safe for external open', () {
+    expect(isSafeExternalUrl(Uri.parse('https://example.com/a')), isTrue);
+    expect(isSafeExternalUrl(Uri.parse('http://example.com/a')), isTrue);
+    expect(isSafeExternalUrl(Uri.parse('javascript:alert(1)')), isFalse);
+    expect(isSafeExternalUrl(Uri.parse('data:text/html,<script>')), isFalse);
+    expect(isSafeExternalUrl(Uri.parse('file:///etc/passwd')), isFalse);
+    expect(isSafeExternalUrl(Uri.parse('/relative/path')), isFalse);
   });
 }
 
@@ -210,6 +263,28 @@ class _MockRustApi implements RustLibApi {
   }
 
   @override
+  String crateApiReaderSetFeedViewMode({
+    required String snapshotJson,
+    required String feedId,
+    required ArticleViewMode viewMode,
+  }) {
+    final snapshot = _jsonMap(snapshotJson);
+    final feeds =
+        List<Map<String, dynamic>>.from(snapshot['feeds'] as List).map((feed) {
+          if (feed['id'] == feedId) {
+            return {...feed, 'articleViewMode': viewMode.name};
+          }
+          return feed;
+        }).toList();
+    snapshot['feeds'] = feeds;
+    return jsonEncode(snapshot);
+  }
+
+  @override
+  Future<ArticleViewMode> crateApiReaderArticleViewModeDefault() async =>
+      ArticleViewMode.global;
+
+  @override
   Future<ImportFeedResult> crateApiReaderImportFeedFromXml({
     required String snapshotJson,
     required String feedUrl,
@@ -280,6 +355,21 @@ class _MockRustApi implements RustLibApi {
   @override
   String crateApiSimpleGreet({required String name}) => 'Hello, $name!';
 
+  ArticleViewMode _viewModeFromName(String? name) {
+    switch (name) {
+      case 'webpage':
+        return ArticleViewMode.webpage;
+      case 'rendered':
+        return ArticleViewMode.rendered;
+      case 'external':
+      case 'external_':
+        return ArticleViewMode.external_;
+      case 'global':
+      default:
+        return ArticleViewMode.global;
+    }
+  }
+
   Map<String, dynamic> _jsonMap(String snapshotJson) {
     if (snapshotJson.trim().isEmpty) {
       return {
@@ -329,6 +419,9 @@ class _MockRustApi implements RustLibApi {
               unreadCount: value['unreadCount'] as int,
               articleCount: value['articleCount'] as int,
               lastSyncedAt: value['lastSyncedAt'] as String?,
+              articleViewMode: _viewModeFromName(
+                value['articleViewMode'] as String?,
+              ),
             ),
           )
           .toList(),
