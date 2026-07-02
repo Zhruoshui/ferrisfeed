@@ -85,14 +85,10 @@ fvm flutter devices
 fvm flutter run -d <android-device-id>
 ```
 
-Run on Web server with the headers required by the FRB Web worker / wasm
-runtime:
+Run the Windows desktop build:
 
 ```bash
-./tools/rebuild-web
-fvm flutter run -d web-server \
-  --web-header=Cross-Origin-Opener-Policy=same-origin \
-  --web-header=Cross-Origin-Embedder-Policy=require-corp
+fvm flutter run -d windows
 ```
 
 ## Validate
@@ -221,55 +217,30 @@ On Omarchy / Arch, AppImage runtime execution may require FUSE 2:
 omarchy pkg install fuse2
 ```
 
-### Web
+### Windows
 
-Rust / FRB changes require a Web artifact rebuild before validating Web:
-
-```bash
-./tools/rebuild-web
-fvm flutter build web
-```
-
-### Web Docker
-
-Build a local Web image:
+Build a Windows release:
 
 ```bash
-./tools/build-web-image ferrisfeed-web
+fvm flutter config --enable-windows-desktop
+fvm flutter build windows --release
 ```
 
-Run the image locally:
+Output location:
 
-```bash
-./tools/run-web-image 8080 ferrisfeed-web
+```text
+build/windows/x64/runner/Release/
 ```
 
-The nginx runtime serves Flutter Web with:
-
-- `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Embedder-Policy: require-corp`
-
-These headers prevent FRB Web worker / wasm initialization regressions during
-deployment verification.
-
-Important detail: the Docker build does not use the host FVM binary. It pins
-Flutter through `Dockerfile.web`'s `FLUTTER_REVISION`, which should remain in
-sync with `.fvmrc`.
-
-## Web Limitations
-
-Docker improves build reproducibility and response headers, but it does not
-remove browser-side RSS feed CORS restrictions. The current Web app fetches
-feed URLs directly from the browser, so some feeds may still fail on Web even
-when the Docker runtime is configured correctly.
+Windows builds require Visual Studio (with the "Desktop development with C++"
+workload) plus this project's Rust / Cargo environment. CI on `windows-latest`
+packages that directory as `ferrisfeed-<version>-windows-x64.zip`.
 
 ## Notes For Maintainers
 
 - Commit `.fvmrc`.
 - Do not commit `.fvm/`, signing keys, `android/key.properties`, `build/`, or
   `dist/`.
-- Run `./tools/rebuild-web` after Rust / FRB API changes that affect Web.
-- Keep `Dockerfile.web`'s Flutter revision aligned with `.fvmrc`.
 - Keep release signing material backed up; future signed Android updates must
   use the same keystore.
 

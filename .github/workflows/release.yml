@@ -173,37 +173,58 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  web-image:
+  windows:
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: subosito/flutter-action@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
 
-      - name: Compute lowercase image name
-        id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push web image
-        uses: docker/build-push-action@v6
+      - name: Cache cargo registry & git
+        uses: actions/cache@v4
         with:
-          context: .
-          file: Dockerfile.web
-          push: true
-          tags: ${{ steps.image.outputs.name }}:${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-windows-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-windows-
+
+      - name: Build Windows release
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter build windows --release `
+            --build-name "${{ needs.prepare.outputs.version_number }}"
+
+      - name: Package Windows bundle (zip)
+        shell: pwsh
+        run: |
+          $bundle = "build/windows/x64/runner/Release"
+          if (-not (Test-Path $bundle)) {
+            Write-Error "Windows build output not found at $bundle"
+            exit 1
+          }
+          New-Item -ItemType Directory -Force -Path staging | Out-Null
+          Compress-Archive -Path "$bundle/*" `
+            -DestinationPath "staging/ferrisfeed-${{ needs.prepare.outputs.version }}-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: staging/*
+          if-no-files-found: error
 
   release:
-    needs: [prepare, android, linux, web-image]
+    needs: [prepare, android, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - name: Download Android artifacts
@@ -218,9 +239,11 @@ jobs:
           name: linux
           path: artifacts
 
-      - name: Compute lowercase image name
-        id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: artifacts
 
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
@@ -232,11 +255,8 @@ jobs:
           body: |
             ## FerrisFeed ${{ needs.prepare.outputs.version }}
 
-            ### 桌面 / 移动产物
-            下方附件包含 Android (APK/AAB) 与 Linux (tar.gz / AppImage)。
-
-            ### Web (Docker)
-            ```bash
-            docker pull ${{ steps.image.outputs.name }}:${{ needs.prepare.outputs.version }}
-            docker run -p 8080:80 ${{ steps.image.outputs.name }}:${{ needs.prepare.outputs.version }}
-            ```
+            ### 下载
+            下方附件包含：
+            - Android：APK / AAB
+            - Linux：tar.gz / AppImage
+            - Windows：x64 zip

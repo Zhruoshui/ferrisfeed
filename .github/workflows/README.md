@@ -18,14 +18,7 @@ git push origin v1.0.0
 |----|------|------|
 | Android | `ferrisfeed-v1.0.0.apk`、`ferrisfeed-v1.0.0.aab`（已签名） | Release 附件 |
 | Linux | `ferrisfeed-v1.0.0-linux-x64.tar.gz`、`FerrisFeed-v1.0.0-x86_64.AppImage` | Release 附件 |
-| Web | Docker 镜像 `ghcr.io/zhruoshui/ferrisfeed:v1.0.0` | GitHub Container Registry |
-
-Web 镜像拉取运行：
-
-```bash
-docker pull ghcr.io/zhruoshui/ferrisfeed:v1.0.0
-docker run -p 8080:80 ghcr.io/zhruoshui/ferrisfeed:v1.0.0
-```
+| Windows | `ferrisfeed-v1.0.0-windows-x64.zip` | Release 附件 |
 
 ## 需要配置的 Secrets
 
@@ -38,10 +31,8 @@ docker run -p 8080:80 ghcr.io/zhruoshui/ferrisfeed:v1.0.0
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key 密码 |
 
-> Web 推送到 ghcr.io 使用内置 `GITHUB_TOKEN`，无需额外配置。首次发布后，到仓库 **Packages** 页可把镜像可见性改为 public。
-
 ## 备注
 
 - Flutter 固定 `3.44.1`（与 `.fvmrc` 一致），Rust 原生库由 cargokit 在 `flutter build` 时自动交叉编译。
-- Web 镜像由 `Dockerfile.web` 构建，其内部自带 Flutter / flutter_rust_bridge 版本与 nightly Rust 工具链，构建自包含。
+- Windows job 在 `windows-latest` 上构建，需自带 Visual Studio C++ 工具链（runner 已预装）。
 - 各 job 独立，单端失败不影响其它端产物；`release` job 汇总附件并创建/更新 Release。
