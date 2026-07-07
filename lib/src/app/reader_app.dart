@@ -12,22 +12,37 @@ class ReaderApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Rust RSS Reader',
-      theme: ThemeData(
-        colorScheme:
-            ColorScheme.fromSeed(
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Rust RSS Reader',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF0B6E99),
               brightness: Brightness.light,
             ).copyWith(
               secondary: const Color(0xFFCB6E17),
               tertiary: const Color(0xFFC86B0A),
             ),
-        scaffoldBackgroundColor: const Color(0xFFF5F6F8),
-        useMaterial3: true,
-      ),
-      home: ReaderHome(controller: controller),
+            scaffoldBackgroundColor: const Color(0xFFF5F6F8),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF0B6E99),
+              brightness: Brightness.dark,
+            ).copyWith(
+              secondary: const Color(0xFFCB6E17),
+              tertiary: const Color(0xFFC86B0A),
+            ),
+            useMaterial3: true,
+          ),
+          themeMode: controller.themeMode,
+          home: ReaderHome(controller: controller),
+        );
+      },
     );
   }
 }
@@ -102,6 +117,11 @@ class _ReaderHomeState extends State<ReaderHome> {
                     enabled: !controller.isWorking,
                     child: const Text('Default view mode'),
                   ),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.themeMode,
+                    enabled: !controller.isWorking,
+                    child: const Text('Theme'),
+                  ),
                 ],
               ),
             ],
@@ -149,6 +169,8 @@ class _ReaderHomeState extends State<ReaderHome> {
                             onCopyLink: _copySelectedArticleLink,
                             onToggleStar: _toggleSelectedStar,
                             onToggleRead: _toggleSelectedRead,
+                            onPreviousArticle: _selectPreviousArticle,
+                            onNextArticle: _selectNextArticle,
                           ),
                         ),
                       ],
@@ -179,6 +201,8 @@ class _ReaderHomeState extends State<ReaderHome> {
                             onCopyLink: _copySelectedArticleLink,
                             onToggleStar: _toggleSelectedStar,
                             onToggleRead: _toggleSelectedRead,
+                            onPreviousArticle: _selectPreviousArticle,
+                            onNextArticle: _selectNextArticle,
                           ),
                         ),
                       ],
@@ -301,9 +325,18 @@ class _ReaderHomeState extends State<ReaderHome> {
     if (!mounted || summary == null) {
       return;
     }
-    _showMessage(
-      'Refreshed ${summary.refreshedFeeds} feeds, ${summary.insertedArticles} new articles.',
-    );
+    if (summary.failedFeeds > 0) {
+      _showMessage(
+        'Refreshed ${summary.refreshedFeeds} feeds, '
+        '${summary.insertedArticles} new articles, '
+        '${summary.failedFeeds} failed.',
+      );
+    } else {
+      _showMessage(
+        'Refreshed ${summary.refreshedFeeds} feeds, '
+        '${summary.insertedArticles} new articles.',
+      );
+    }
   }
 
   Future<void> _handleMenuAction(
@@ -349,6 +382,9 @@ class _ReaderHomeState extends State<ReaderHome> {
       case _ReaderMenuAction.defaultViewMode:
         await _showDefaultViewModeDialog(controller);
         return;
+      case _ReaderMenuAction.themeMode:
+        await _showThemeModeDialog(controller);
+        return;
     }
   }
 
@@ -382,6 +418,31 @@ class _ReaderHomeState extends State<ReaderHome> {
     }
     controller.appDefaultViewMode = selected;
     _showMessage('Default view mode updated.');
+  }
+
+  Future<void> _showThemeModeDialog(ReaderController controller) async {
+    final selected = await showDialog<ThemeMode>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Theme'),
+          children: [
+            for (final mode in ThemeMode.values)
+              ListTile(
+                title: Text(_themeModeLabel(mode)),
+                trailing: mode == controller.themeMode
+                    ? const Icon(Icons.check)
+                    : const SizedBox.shrink(),
+                onTap: () => Navigator.of(context).pop(mode),
+              ),
+          ],
+        );
+      },
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    controller.themeMode = selected;
   }
 
   Future<ArticleViewMode?> _pickViewMode({
@@ -445,34 +506,65 @@ class _ReaderHomeState extends State<ReaderHome> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(widget.controller.currentViewTitle),
-              actions: [
-                IconButton(
-                  tooltip: 'Copy link',
-                  onPressed: _copySelectedArticleLink,
-                  icon: const Icon(Icons.link),
+          return AnimatedBuilder(
+            animation: widget.controller,
+            builder: (context, _) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(widget.controller.currentViewTitle),
+                  actions: [
+                    IconButton(
+                      tooltip: 'Previous article',
+                      onPressed:
+                          widget.controller.canSelectPreviousArticle
+                              ? _selectPreviousArticle
+                              : null,
+                      icon: const Icon(Icons.keyboard_arrow_up),
+                    ),
+                    IconButton(
+                      tooltip: 'Next article',
+                      onPressed:
+                          widget.controller.canSelectNextArticle
+                              ? _selectNextArticle
+                              : null,
+                      icon: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy link',
+                      onPressed: _copySelectedArticleLink,
+                      icon: const Icon(Icons.link),
+                    ),
+                    IconButton(
+                      tooltip: 'Toggle star',
+                      onPressed: _toggleSelectedStar,
+                      icon: Icon(
+                        widget.controller.selectedArticle?.isStarred ?? false
+                            ? Icons.star
+                            : Icons.star_outline,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Toggle read state',
+                      onPressed: _toggleSelectedRead,
+                      icon: Icon(
+                        widget.controller.selectedArticle?.isRead ?? false
+                            ? Icons.mark_email_unread_outlined
+                            : Icons.mark_email_read_outlined,
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'Toggle star',
-                  onPressed: _toggleSelectedStar,
-                  icon: const Icon(Icons.star_outline),
+                body: _ArticleDetailPane(
+                  controller: widget.controller,
+                  showToolbar: false,
+                  onCopyLink: _copySelectedArticleLink,
+                  onToggleStar: _toggleSelectedStar,
+                  onToggleRead: _toggleSelectedRead,
+                  onPreviousArticle: _selectPreviousArticle,
+                  onNextArticle: _selectNextArticle,
                 ),
-                IconButton(
-                  tooltip: 'Toggle read state',
-                  onPressed: _toggleSelectedRead,
-                  icon: const Icon(Icons.mark_email_read_outlined),
-                ),
-              ],
-            ),
-            body: _ArticleDetailPane(
-              controller: widget.controller,
-              showToolbar: false,
-              onCopyLink: _copySelectedArticleLink,
-              onToggleStar: _toggleSelectedStar,
-              onToggleRead: _toggleSelectedRead,
-            ),
+              );
+            },
           );
         },
       ),
@@ -495,6 +587,14 @@ class _ReaderHomeState extends State<ReaderHome> {
       () => widget.controller.setSelectedArticleRead(!article.isRead),
       successMessage: 'Read state updated.',
     );
+  }
+
+  Future<void> _selectPreviousArticle() async {
+    await _runGuarded(() => widget.controller.selectAdjacentArticle(-1));
+  }
+
+  Future<void> _selectNextArticle() async {
+    await _runGuarded(() => widget.controller.selectAdjacentArticle(1));
   }
 
   Future<void> _copySelectedArticleLink() async {
@@ -617,10 +717,23 @@ class _FeedSidebar extends StatelessWidget {
                   count: controller.totalUnreadCount,
                   selected:
                       controller.selectedFeedId == null &&
-                      !controller.isShowingStarredOnly,
+                      !controller.isShowingStarredOnly &&
+                      !controller.isShowingUnreadOnly,
                   icon: Icons.article_outlined,
                   onTap: () {
                     controller.showAllArticles();
+                    onCloseRequested?.call();
+                  },
+                ),
+                _SidebarDestination(
+                  label: 'Unread',
+                  count: controller.totalUnreadCount,
+                  selected:
+                      controller.selectedFeedId == null &&
+                      controller.isShowingUnreadOnly,
+                  icon: Icons.mark_email_unread_outlined,
+                  onTap: () {
+                    controller.showUnreadArticles();
                     onCloseRequested?.call();
                   },
                 ),
@@ -643,7 +756,8 @@ class _FeedSidebar extends StatelessWidget {
                     count: feed.unreadCount,
                     selected:
                         controller.selectedFeedId == feed.id &&
-                        !controller.isShowingStarredOnly,
+                        !controller.isShowingStarredOnly &&
+                        !controller.isShowingUnreadOnly,
                     icon: Icons.rss_feed,
                     onTap: () {
                       controller.showFeed(feed.id);
@@ -652,6 +766,7 @@ class _FeedSidebar extends StatelessWidget {
                     subtitle: feed.description.isNotEmpty
                         ? _plainText(feed.description)
                         : null,
+                    errorText: feed.lastError,
                   ),
               ],
             ),
@@ -670,6 +785,7 @@ class _SidebarDestination extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.subtitle,
+    this.errorText,
   });
 
   final String label;
@@ -678,6 +794,7 @@ class _SidebarDestination extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final String? subtitle;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -695,7 +812,11 @@ class _SidebarDestination extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: 20),
+                Icon(
+                  icon,
+                  size: 20,
+                  color: errorText != null ? scheme.error : null,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -714,6 +835,17 @@ class _SidebarDestination extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if (errorText != null && errorText!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          errorText!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.error,
+                          ),
                         ),
                       ],
                     ],
@@ -905,6 +1037,8 @@ class _ArticleDetailPane extends StatelessWidget {
     required this.onCopyLink,
     required this.onToggleStar,
     required this.onToggleRead,
+    required this.onPreviousArticle,
+    required this.onNextArticle,
   });
 
   final ReaderController controller;
@@ -912,6 +1046,8 @@ class _ArticleDetailPane extends StatelessWidget {
   final Future<void> Function() onCopyLink;
   final Future<void> Function() onToggleStar;
   final Future<void> Function() onToggleRead;
+  final Future<void> Function() onPreviousArticle;
+  final Future<void> Function() onNextArticle;
 
   @override
   Widget build(BuildContext context) {
@@ -935,6 +1071,8 @@ class _ArticleDetailPane extends StatelessWidget {
       onCopyLink: onCopyLink,
       onToggleStar: onToggleStar,
       onToggleRead: onToggleRead,
+      onPreviousArticle: onPreviousArticle,
+      onNextArticle: onNextArticle,
     );
 
     if (effectiveMode == ArticleViewMode.webpage) {
@@ -952,6 +1090,7 @@ class _ArticleDetailPane extends StatelessWidget {
               effectiveMode: effectiveMode,
               feedTitle: controller.feedTitleFor(article.feedId),
               header: const SizedBox.shrink(),
+              controller: controller,
             ),
           ),
         ],
@@ -969,6 +1108,7 @@ class _ArticleDetailPane extends StatelessWidget {
           children: [header, const SizedBox(height: 4)],
         ),
       ),
+      controller: controller,
     );
   }
 }
@@ -982,6 +1122,8 @@ class _ArticleDetailHeader extends StatelessWidget {
     required this.onCopyLink,
     required this.onToggleStar,
     required this.onToggleRead,
+    required this.onPreviousArticle,
+    required this.onNextArticle,
   });
 
   final ReaderController controller;
@@ -991,6 +1133,8 @@ class _ArticleDetailHeader extends StatelessWidget {
   final Future<void> Function() onCopyLink;
   final Future<void> Function() onToggleStar;
   final Future<void> Function() onToggleRead;
+  final Future<void> Function() onPreviousArticle;
+  final Future<void> Function() onNextArticle;
 
   @override
   Widget build(BuildContext context) {
@@ -1003,6 +1147,20 @@ class _ArticleDetailHeader extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
+              IconButton.filledTonal(
+                tooltip: 'Previous article',
+                onPressed: controller.canSelectPreviousArticle
+                    ? onPreviousArticle
+                    : null,
+                icon: const Icon(Icons.keyboard_arrow_up),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Next article',
+                onPressed: controller.canSelectNextArticle
+                    ? onNextArticle
+                    : null,
+                icon: const Icon(Icons.keyboard_arrow_down),
+              ),
               IconButton.filledTonal(
                 tooltip: 'Copy article link',
                 onPressed: onCopyLink,
@@ -1220,7 +1378,13 @@ class _CountPill extends StatelessWidget {
   }
 }
 
-enum _ReaderMenuAction { clearRead, removeFeed, feedViewMode, defaultViewMode }
+enum _ReaderMenuAction {
+  clearRead,
+  removeFeed,
+  feedViewMode,
+  defaultViewMode,
+  themeMode,
+}
 
 String _viewModeLabel(ArticleViewMode mode) {
   switch (mode) {
@@ -1232,6 +1396,17 @@ String _viewModeLabel(ArticleViewMode mode) {
       return 'In-app webpage';
     case ArticleViewMode.external_:
       return 'System browser';
+  }
+}
+
+String _themeModeLabel(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.system:
+      return 'Follow system';
+    case ThemeMode.light:
+      return 'Light';
+    case ThemeMode.dark:
+      return 'Dark';
   }
 }
 

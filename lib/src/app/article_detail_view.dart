@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/rust/api/reader.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -45,11 +47,13 @@ class ArticleDetailBody extends StatelessWidget {
     required this.effectiveMode,
     required this.feedTitle,
     required this.header,
+    required this.controller,
   });
 
   final Article article;
   final ArticleViewMode effectiveMode;
   final String feedTitle;
+  final ReaderController controller;
 
   /// Metadata header (feed title, article title, author, date, link) that is
   /// shown above rendered content. It is omitted for the webpage view so the
@@ -61,38 +65,224 @@ class ArticleDetailBody extends StatelessWidget {
     if (effectiveMode == ArticleViewMode.webpage) {
       return _WebpageArticleView(article: article);
     }
-    return _RenderedArticleView(article: article, header: header);
+    return _RenderedArticleView(
+      article: article,
+      header: header,
+      controller: controller,
+    );
   }
 }
 
 class _RenderedArticleView extends StatelessWidget {
-  const _RenderedArticleView({required this.article, required this.header});
+  const _RenderedArticleView({
+    required this.article,
+    required this.header,
+    required this.controller,
+  });
 
   final Article article;
   final Widget header;
+  final ReaderController controller;
 
   @override
   Widget build(BuildContext context) {
     final html = _articleHtml(article);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final baseFontSize = theme.textTheme.bodyLarge?.fontSize ?? 16.0;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header,
+              if (html.isNotEmpty) _ReadingFontControls(controller: controller),
+              if (html.isEmpty)
+                Text(
+                  'This article does not include body content in the feed payload.',
+                  style: theme.textTheme.bodyLarge,
+                )
+              else
+                HtmlWidget(
+                  html,
+                  onTapUrl: (url) => openInSystemBrowser(url),
+                  onTapImage: (metadata) {
+                    final src = metadata.sources.isNotEmpty
+                        ? metadata.sources.first.url
+                        : '';
+                    if (src.isNotEmpty) {
+                      _showImageDialog(context, src);
+                    }
+                  },
+                  textStyle: theme.textTheme.bodyLarge?.copyWith(
+                    height: 1.5,
+                    fontSize: baseFontSize * controller.readingFontScale,
+                  ),
+                  customStylesBuilder: (element) =>
+                      _customStyles(element, isDark),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Style overrides applied per element: code blocks get a themed background
+  /// and monospace font, images get responsive sizing, and in dark mode any
+  /// feed-supplied inline colors are neutralized so the text follows the
+  /// theme.
+  Map<String, String>? _customStyles(
+    dom.Element element,
+    bool isDark,
+  ) {
+    final tag = element.localName?.toLowerCase();
+    if (tag == 'pre') {
+      return {
+        'background-color': isDark ? '#1e1e1e' : '#f5f5f5',
+        'padding': '12px',
+        'border-radius': '8px',
+        'overflow-x': 'auto',
+        'font-family': 'monospace',
+        'color': isDark ? '#e0e0e0' : '#1a1a1a',
+      };
+    }
+    if (tag == 'img') {
+      return {
+        'max-width': '100%',
+        'height': 'auto',
+        'border-radius': '8px',
+      };
+    }
+    if (isDark) {
+      final style = element.attributes['style'];
+      if (style != null &&
+          (style.contains('background') || style.contains('color'))) {
+        return {
+          'background-color': 'transparent',
+          'color': 'inherit',
+        };
+      }
+    }
+    return null;
+  }
+
+  void _showImageDialog(BuildContext context, String src) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _ImageZoomDialog(src: src),
+    );
+  }
+}
+
+/// Compact A-/A+/reset control row shown above rendered article content.
+class _ReadingFontControls extends StatelessWidget {
+  const _ReadingFontControls({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scale = controller.readingFontScale;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          header,
-          if (html.isEmpty)
-            Text(
-              'This article does not include body content in the feed payload.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            )
-          else
-            HtmlWidget(
-              html,
-              onTapUrl: (url) => openInSystemBrowser(url),
-              textStyle: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(height: 1.5),
-            ),
+          IconButton.filledTonal(
+            tooltip: 'Decrease font size',
+            onPressed: scale <= 0.8
+                ? null
+                : () => controller.readingFontScale = scale - 0.1,
+            icon: const Icon(Icons.text_decrease),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${(scale * 100).round()}%',
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: 'Increase font size',
+            onPressed: scale >= 1.6
+                ? null
+                : () => controller.readingFontScale = scale + 0.1,
+            icon: const Icon(Icons.text_increase),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: 'Reset font size',
+            onPressed: (scale - 1.0).abs() < 0.01
+                ? null
+                : () => controller.readingFontScale = 1.0,
+            icon: const Icon(Icons.restart_alt),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Full-screen dialog showing a tappable, zoomable image. Falls back to a
+/// "open in browser" button when the network image cannot be decoded.
+class _ImageZoomDialog extends StatelessWidget {
+  const _ImageZoomDialog({required this.src});
+
+  final String src;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: InteractiveViewer(
+          maxScale: 4.0,
+          child: Image.network(
+            src,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return _ImageErrorView(src: src);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageErrorView extends StatelessWidget {
+  const _ImageErrorView({required this.src});
+
+  final String src;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.broken_image_outlined,
+            size: 48,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+          const SizedBox(height: 16),
+          const Text('Could not load the image.'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              openInSystemBrowser(src);
+            },
+            icon: const Icon(Icons.open_in_new),
+            label: const Text('Open in browser'),
+          ),
         ],
       ),
     );

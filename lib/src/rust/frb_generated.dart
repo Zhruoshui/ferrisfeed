@@ -67,7 +67,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1706832495;
+  int get rustContentHash => 1560527801;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -113,12 +113,19 @@ abstract class RustLibApi extends BaseApi {
     required String snapshotJson,
     String? feedId,
     required bool showStarredOnly,
+    required bool showUnreadOnly,
   });
 
   String crateApiReaderMarkArticleRead({
     required String snapshotJson,
     required String articleId,
     required bool isRead,
+  });
+
+  String crateApiReaderRecordFeedError({
+    required String snapshotJson,
+    required String feedId,
+    required String errorMessage,
   });
 
   String crateApiReaderRemoveFeed({
@@ -402,6 +409,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String snapshotJson,
     String? feedId,
     required bool showStarredOnly,
+    required bool showUnreadOnly,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -410,6 +418,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(snapshotJson, serializer);
           sse_encode_opt_String(feedId, serializer);
           sse_encode_bool(showStarredOnly, serializer);
+          sse_encode_bool(showUnreadOnly, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
@@ -417,7 +426,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_reader_error,
         ),
         constMeta: kCrateApiReaderListArticlesConstMeta,
-        argValues: [snapshotJson, feedId, showStarredOnly],
+        argValues: [snapshotJson, feedId, showStarredOnly, showUnreadOnly],
         apiImpl: this,
       ),
     );
@@ -425,7 +434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiReaderListArticlesConstMeta => const TaskConstMeta(
     debugName: "list_articles",
-    argNames: ["snapshotJson", "feedId", "showStarredOnly"],
+    argNames: ["snapshotJson", "feedId", "showStarredOnly", "showUnreadOnly"],
   );
 
   @override
@@ -461,6 +470,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  String crateApiReaderRecordFeedError({
+    required String snapshotJson,
+    required String feedId,
+    required String errorMessage,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(snapshotJson, serializer);
+          sse_encode_String(feedId, serializer);
+          sse_encode_String(errorMessage, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_reader_error,
+        ),
+        constMeta: kCrateApiReaderRecordFeedErrorConstMeta,
+        argValues: [snapshotJson, feedId, errorMessage],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiReaderRecordFeedErrorConstMeta =>
+      const TaskConstMeta(
+        debugName: "record_feed_error",
+        argNames: ["snapshotJson", "feedId", "errorMessage"],
+      );
+
+  @override
   String crateApiReaderRemoveFeed({
     required String snapshotJson,
     required String feedId,
@@ -471,7 +512,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(feedId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -502,7 +543,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(feedId, serializer);
           sse_encode_article_view_mode(viewMode, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -532,7 +573,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(snapshotJson, serializer);
           sse_encode_String(articleId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -617,8 +658,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Feed dco_decode_feed(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return Feed(
       id: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -629,6 +670,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       articleCount: dco_decode_i_32(arr[6]),
       lastSyncedAt: dco_decode_opt_String(arr[7]),
       articleViewMode: dco_decode_article_view_mode(arr[8]),
+      lastError: dco_decode_opt_String(arr[9]),
+      errorCount: dco_decode_i_32(arr[10]),
     );
   }
 
@@ -820,6 +863,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_articleCount = sse_decode_i_32(deserializer);
     var var_lastSyncedAt = sse_decode_opt_String(deserializer);
     var var_articleViewMode = sse_decode_article_view_mode(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    var var_errorCount = sse_decode_i_32(deserializer);
     return Feed(
       id: var_id,
       title: var_title,
@@ -830,6 +875,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       articleCount: var_articleCount,
       lastSyncedAt: var_lastSyncedAt,
       articleViewMode: var_articleViewMode,
+      lastError: var_lastError,
+      errorCount: var_errorCount,
     );
   }
 
@@ -1028,6 +1075,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.articleCount, serializer);
     sse_encode_opt_String(self.lastSyncedAt, serializer);
     sse_encode_article_view_mode(self.articleViewMode, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
+    sse_encode_i_32(self.errorCount, serializer);
   }
 
   @protected

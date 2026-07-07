@@ -18,6 +18,7 @@
 - `clear_all_read_articles(...) -> Result<String, ReaderError>`
 - `import_feed_from_xml(...) -> Result<ImportFeedResult, ReaderError>`
 - `set_feed_view_mode(snapshot_json: String, feed_id: String, mode: ArticleViewMode) -> Result<String, ReaderError>`
+- `record_feed_error(snapshot_json: String, feed_id: String, error_message: String) -> Result<String, ReaderError>`
 
 ### 3. Contracts
 
@@ -38,6 +39,7 @@
 - Missing article or feed during mutation -> `not_found`
 - Unsupported XML shape or invalid snapshot JSON -> `parse_error`
 - `set_feed_view_mode` on an unknown `feed_id` -> `not_found`
+- `record_feed_error` on an unknown `feed_id` -> `not_found`
 
 ### 5. Good / Base / Bad Cases
 

@@ -7,19 +7,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 typedef SnapshotReader = Future<String?> Function();
 typedef SnapshotWriter = Future<void> Function(String snapshotJson);
+typedef SettingReader = Future<String?> Function(String key);
+typedef SettingWriter = Future<void> Function(String key, String value);
 
 class ReaderRepository {
   ReaderRepository._(
     this._readSnapshot,
     this._writeSnapshot, {
     http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+    SettingReader? readSetting,
+    SettingWriter? writeSetting,
+  })  : _httpClient = httpClient ?? http.Client(),
+        _readSetting = readSetting ?? ((_) async => null),
+        _writeSetting = writeSetting ?? ((_, _) async {});
 
   static const _snapshotStorageKey = 'reader_snapshot_v1';
+  static const _settingPrefix = 'reader_setting_';
   static const _requestTimeout = Duration(seconds: 20);
 
   final SnapshotReader _readSnapshot;
   final SnapshotWriter _writeSnapshot;
+  final SettingReader _readSetting;
+  final SettingWriter _writeSetting;
   final http.Client _httpClient;
 
   static Future<ReaderRepository> create({http.Client? httpClient}) async {
@@ -30,6 +39,10 @@ class ReaderRepository {
         await preferences.setString(_snapshotStorageKey, snapshotJson);
       },
       httpClient: httpClient,
+      readSetting: (key) async => preferences.getString('$_settingPrefix$key'),
+      writeSetting: (key, value) async {
+        await preferences.setString('$_settingPrefix$key', value);
+      },
     );
   }
 
@@ -38,11 +51,18 @@ class ReaderRepository {
     http.Client? httpClient,
   }) {
     var inMemorySnapshot = initialSnapshotJson;
-    return ReaderRepository._(() async => inMemorySnapshot, (
-      snapshotJson,
-    ) async {
-      inMemorySnapshot = snapshotJson;
-    }, httpClient: httpClient);
+    final inMemorySettings = <String, String>{};
+    return ReaderRepository._(
+      () async => inMemorySnapshot,
+      (snapshotJson) async {
+        inMemorySnapshot = snapshotJson;
+      },
+      httpClient: httpClient,
+      readSetting: (key) async => inMemorySettings[key],
+      writeSetting: (key, value) async {
+        inMemorySettings[key] = value;
+      },
+    );
   }
 
   Future<String> loadSnapshotJson() async {
@@ -55,6 +75,14 @@ class ReaderRepository {
 
   Future<void> saveSnapshotJson(String snapshotJson) {
     return _writeSnapshot(snapshotJson);
+  }
+
+  Future<String?> getSetting(String key) {
+    return _readSetting(key);
+  }
+
+  Future<void> setSetting(String key, String value) {
+    return _writeSetting(key, value);
   }
 
   Future<ImportFeedResult> importFeed({

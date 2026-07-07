@@ -22,10 +22,12 @@ List<ArticleListItem> listArticles({
   required String snapshotJson,
   String? feedId,
   required bool showStarredOnly,
+  required bool showUnreadOnly,
 }) => RustLib.instance.api.crateApiReaderListArticles(
   snapshotJson: snapshotJson,
   feedId: feedId,
   showStarredOnly: showStarredOnly,
+  showUnreadOnly: showUnreadOnly,
 );
 
 Article getArticle({required String snapshotJson, required String articleId}) =>
@@ -78,6 +80,16 @@ String clearAllReadArticles({required String snapshotJson}) => RustLib
     .instance
     .api
     .crateApiReaderClearAllReadArticles(snapshotJson: snapshotJson);
+
+String recordFeedError({
+  required String snapshotJson,
+  required String feedId,
+  required String errorMessage,
+}) => RustLib.instance.api.crateApiReaderRecordFeedError(
+  snapshotJson: snapshotJson,
+  feedId: feedId,
+  errorMessage: errorMessage,
+);
 
 Future<ImportFeedResult> importFeedFromXml({
   required String snapshotJson,
@@ -211,6 +223,8 @@ class Feed {
   final int articleCount;
   final String? lastSyncedAt;
   final ArticleViewMode articleViewMode;
+  final String? lastError;
+  final int errorCount;
 
   const Feed({
     required this.id,
@@ -222,6 +236,8 @@ class Feed {
     required this.articleCount,
     this.lastSyncedAt,
     required this.articleViewMode,
+    this.lastError,
+    required this.errorCount,
   });
 
   @override
@@ -234,7 +250,9 @@ class Feed {
       unreadCount.hashCode ^
       articleCount.hashCode ^
       lastSyncedAt.hashCode ^
-      articleViewMode.hashCode;
+      articleViewMode.hashCode ^
+      lastError.hashCode ^
+      errorCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -249,7 +267,9 @@ class Feed {
           unreadCount == other.unreadCount &&
           articleCount == other.articleCount &&
           lastSyncedAt == other.lastSyncedAt &&
-          articleViewMode == other.articleViewMode;
+          articleViewMode == other.articleViewMode &&
+          lastError == other.lastError &&
+          errorCount == other.errorCount;
 }
 
 class FeedDraft {

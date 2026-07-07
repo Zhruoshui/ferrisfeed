@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:rss_reader/main.dart';
@@ -92,6 +93,155 @@ void main() {
     expect(isSafeExternalUrl(Uri.parse('file:///etc/passwd')), isFalse);
     expect(isSafeExternalUrl(Uri.parse('/relative/path')), isFalse);
   });
+
+  test('unread filter shows only unread articles', () async {
+    final controller = ReaderController(
+      repository: ReaderRepository.memory(
+        httpClient: _FakeHttpClient(
+          responses: {
+            Uri.parse('https://example.com/feed.xml'): http.Response.bytes(
+              Uint8List.fromList(_sampleFeedTwoItems.codeUnits),
+              200,
+              headers: const {'content-type': 'application/rss+xml'},
+            ),
+          },
+        ),
+      ),
+    );
+
+    await controller.load();
+    await controller.addFeed('https://example.com/feed.xml');
+    expect(controller.articles.length, 2);
+
+    // Mark the first article as read by opening it.
+    final firstArticleId = controller.articles.first.id;
+    await controller.openArticle(firstArticleId);
+
+    // All articles view shows both.
+    controller.showAllArticles();
+    expect(controller.articles.length, 2);
+
+    // Unread view shows only the unread one.
+    controller.showUnreadArticles();
+    expect(controller.articles.length, 1);
+    expect(controller.articles.first.isRead, isFalse);
+  });
+
+  test('adjacent article navigation moves within the list', () async {
+    final controller = ReaderController(
+      repository: ReaderRepository.memory(
+        httpClient: _FakeHttpClient(
+          responses: {
+            Uri.parse('https://example.com/feed.xml'): http.Response.bytes(
+              Uint8List.fromList(_sampleFeedTwoItems.codeUnits),
+              200,
+              headers: const {'content-type': 'application/rss+xml'},
+            ),
+          },
+        ),
+      ),
+    );
+
+    await controller.load();
+    await controller.addFeed('https://example.com/feed.xml');
+    expect(controller.articles.length, 2);
+
+    // After addFeed the first inserted article is selected (older one, index 1).
+    expect(controller.canSelectPreviousArticle, isTrue);
+    expect(controller.canSelectNextArticle, isFalse);
+
+    // Move to the previous (newer) article.
+    await controller.selectAdjacentArticle(-1);
+    expect(controller.canSelectPreviousArticle, isFalse);
+    expect(controller.canSelectNextArticle, isTrue);
+
+    // Move back to the older article.
+    await controller.selectAdjacentArticle(1);
+    expect(controller.canSelectPreviousArticle, isTrue);
+    expect(controller.canSelectNextArticle, isFalse);
+  });
+
+  test('refresh continues when a single feed fails', () async {
+    final initialSnapshot = jsonEncode({
+      'feeds': [
+        {
+          'id': 'feed-good',
+          'title': 'Good Feed',
+          'sourceUrl': 'https://example.com/good.xml',
+          'siteUrl': 'https://example.com',
+          'description': '',
+          'unreadCount': 0,
+          'articleCount': 0,
+          'lastSyncedAt': null,
+          'lastError': null,
+          'errorCount': 0,
+        },
+        {
+          'id': 'feed-bad',
+          'title': 'Bad Feed',
+          'sourceUrl': 'https://example.com/bad.xml',
+          'siteUrl': 'https://example.com',
+          'description': '',
+          'unreadCount': 0,
+          'articleCount': 0,
+          'lastSyncedAt': null,
+          'lastError': null,
+          'errorCount': 0,
+        },
+      ],
+      'articles': [],
+      'lastUpdatedAt': null,
+    });
+
+    final controller = ReaderController(
+      repository: ReaderRepository.memory(
+        initialSnapshotJson: initialSnapshot,
+        httpClient: _FakeHttpClient(
+          responses: {
+            Uri.parse('https://example.com/good.xml'): http.Response.bytes(
+              Uint8List.fromList(_sampleFeed.codeUnits),
+              200,
+              headers: const {'content-type': 'application/rss+xml'},
+            ),
+            Uri.parse('https://example.com/bad.xml'): http.Response.bytes(
+              Uint8List.fromList('error'.codeUnits),
+              500,
+            ),
+          },
+        ),
+      ),
+    );
+
+    await controller.load();
+    expect(controller.feeds.length, 2);
+
+    final summary = await controller.refreshFeeds();
+    expect(summary.refreshedFeeds, 1);
+    expect(summary.failedFeeds, 1);
+
+    // The failed feed should have lastError set and errorCount incremented.
+    final badFeed = controller.feeds.firstWhere(
+      (feed) => feed.sourceUrl == 'https://example.com/bad.xml',
+    );
+    expect(badFeed.lastError, isNotNull);
+    expect(badFeed.errorCount, 1);
+  });
+
+  test('theme mode and font scale persist across reload', () async {
+    final repository = ReaderRepository.memory();
+    final controller = ReaderController(repository: repository);
+    await controller.load();
+
+    controller.themeMode = ThemeMode.dark;
+    controller.readingFontScale = 1.3;
+    // Allow async best-effort persistence to complete.
+    await Future.delayed(Duration.zero);
+
+    final reloaded = ReaderController(repository: repository);
+    await reloaded.load();
+    expect(reloaded.themeMode, ThemeMode.dark);
+    expect(reloaded.readingFontScale, closeTo(1.3, 0.01));
+  });
 }
 
 class _FakeHttpClient extends http.BaseClient {
@@ -136,6 +286,7 @@ class _MockRustApi implements RustLibApi {
     required String snapshotJson,
     String? feedId,
     required bool showStarredOnly,
+    required bool showUnreadOnly,
   }) {
     final snapshot = _snapshotFromJson(snapshotJson);
     final feedsById = {for (final feed in snapshot.feeds) feed.id: feed.title};
@@ -143,7 +294,8 @@ class _MockRustApi implements RustLibApi {
         .where((article) {
           final feedMatches = feedId == null || article.feedId == feedId;
           final starredMatches = !showStarredOnly || article.isStarred;
-          return feedMatches && starredMatches;
+          final unreadMatches = !showUnreadOnly || !article.isRead;
+          return feedMatches && starredMatches && unreadMatches;
         })
         .map((article) {
           return ArticleListItem(
@@ -192,6 +344,8 @@ class _MockRustApi implements RustLibApi {
       'unreadCount': 0,
       'articleCount': 0,
       'lastSyncedAt': null,
+      'lastError': null,
+      'errorCount': 0,
     });
     snapshot['feeds'] = feeds;
     return jsonEncode(snapshot);
@@ -281,6 +435,29 @@ class _MockRustApi implements RustLibApi {
   }
 
   @override
+  String crateApiReaderRecordFeedError({
+    required String snapshotJson,
+    required String feedId,
+    required String errorMessage,
+  }) {
+    final snapshot = _jsonMap(snapshotJson);
+    final feeds =
+        List<Map<String, dynamic>>.from(snapshot['feeds'] as List).map((feed) {
+          if (feed['id'] == feedId) {
+            return {
+              ...feed,
+              'lastError': errorMessage,
+              'errorCount': (feed['errorCount'] as int? ?? 0) + 1,
+              'lastSyncedAt': DateTime.now().toUtc().toIso8601String(),
+            };
+          }
+          return feed;
+        }).toList();
+    snapshot['feeds'] = feeds;
+    return jsonEncode(snapshot);
+  }
+
+  @override
   Future<ArticleViewMode> crateApiReaderArticleViewModeDefault() async =>
       ArticleViewMode.global;
 
@@ -306,6 +483,8 @@ class _MockRustApi implements RustLibApi {
       'unreadCount': 0,
       'articleCount': 0,
       'lastSyncedAt': DateTime.now().toUtc().toIso8601String(),
+      'lastError': null,
+      'errorCount': 0,
     };
     feeds.add(feedMap);
 
@@ -422,6 +601,8 @@ class _MockRustApi implements RustLibApi {
               articleViewMode: _viewModeFromName(
                 value['articleViewMode'] as String?,
               ),
+              lastError: value['lastError'] as String?,
+              errorCount: value['errorCount'] as int? ?? 0,
             ),
           )
           .toList(),
@@ -556,6 +737,29 @@ const _sampleFeed = '''
       <link>https://example.com/articles/1</link>
       <description>Hello from the feed</description>
       <pubDate>Wed, 17 Jun 2026 10:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
+''';
+
+const _sampleFeedTwoItems = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Feed</title>
+    <link>https://example.com</link>
+    <description>Example stories</description>
+    <item>
+      <title>First story</title>
+      <link>https://example.com/articles/1</link>
+      <description>Hello from the feed</description>
+      <pubDate>Wed, 17 Jun 2026 10:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Second story</title>
+      <link>https://example.com/articles/2</link>
+      <description>Second article</description>
+      <pubDate>Wed, 17 Jun 2026 11:00:00 GMT</pubDate>
     </item>
   </channel>
 </rss>

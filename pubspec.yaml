@@ -37,6 +37,7 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.5
   flutter_widget_from_html: ^0.16.0
+  html: ^0.15.4
   url_launcher: ^6.3.1
   webview_flutter: ^4.10.0
   rust_lib_rss_reader:

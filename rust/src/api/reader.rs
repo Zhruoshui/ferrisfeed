@@ -37,6 +37,10 @@ pub struct Feed {
     pub last_synced_at: Option<String>,
     #[serde(default)]
     pub article_view_mode: ArticleViewMode,
+    #[serde(default)]
+    pub last_error: Option<String>,
+    #[serde(default)]
+    pub error_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +144,7 @@ pub fn list_articles(
     snapshot_json: String,
     feed_id: Option<String>,
     show_starred_only: bool,
+    show_unread_only: bool,
 ) -> Result<Vec<ArticleListItem>, ReaderError> {
     let snapshot = decode_snapshot(&snapshot_json)?;
     let mut items = snapshot
@@ -150,6 +155,7 @@ pub fn list_articles(
             None => true,
         })
         .filter(|article| !show_starred_only || article.is_starred)
+        .filter(|article| !show_unread_only || !article.is_read)
         .map(|article| {
             let feed_title = snapshot
                 .feeds
@@ -211,6 +217,8 @@ pub fn add_feed(
         article_count: 0,
         last_synced_at: None,
         article_view_mode: ArticleViewMode::default(),
+        last_error: None,
+        error_count: 0,
     });
     snapshot.last_updated_at = Some(now_iso_string());
     sort_feeds(&mut snapshot.feeds);
@@ -294,6 +302,25 @@ pub fn clear_all_read_articles(snapshot_json: String) -> Result<String, ReaderEr
     Ok(serialize_snapshot(&snapshot))
 }
 
+#[flutter_rust_bridge::frb(sync)]
+pub fn record_feed_error(
+    snapshot_json: String,
+    feed_id: String,
+    error_message: String,
+) -> Result<String, ReaderError> {
+    let mut snapshot = decode_snapshot(&snapshot_json)?;
+    let feed = snapshot
+        .feeds
+        .iter_mut()
+        .find(|feed| feed.id == feed_id)
+        .ok_or_else(|| ReaderError::not_found("Feed not found"))?;
+    feed.last_error = Some(error_message);
+    feed.error_count += 1;
+    feed.last_synced_at = Some(now_iso_string());
+    snapshot.last_updated_at = Some(now_iso_string());
+    Ok(serialize_snapshot(&snapshot))
+}
+
 #[flutter_rust_bridge::frb]
 pub async fn import_feed_from_xml(
     snapshot_json: String,
@@ -321,6 +348,8 @@ fn import_feed_from_xml_sync(
         existing_feed.site_url = parsed_feed.feed.site_url.clone();
         existing_feed.description = parsed_feed.feed.description.clone();
         existing_feed.last_synced_at = Some(now_iso_string());
+        existing_feed.last_error = None;
+        existing_feed.error_count = 0;
         existing_feed.id.clone()
     } else {
         let feed_id = Uuid::new_v4().to_string();
@@ -334,6 +363,8 @@ fn import_feed_from_xml_sync(
             article_count: 0,
             last_synced_at: Some(now_iso_string()),
             article_view_mode: ArticleViewMode::default(),
+            last_error: None,
+            error_count: 0,
         });
         feed_id
     };
@@ -773,5 +804,97 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code, "not_found");
+    }
+
+    #[test]
+    fn record_feed_error_records_and_increments() {
+        let import_result = import_feed_from_xml_sync(
+            empty_reader_snapshot_json(),
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        let feed_id = import_result.feed.id.clone();
+
+        let error_snapshot = record_feed_error(
+            import_result.snapshot_json,
+            feed_id.clone(),
+            "HTTP 503".to_owned(),
+        )
+        .unwrap();
+        let snapshot = decode_reader_snapshot(error_snapshot).unwrap();
+        let feed = snapshot.feeds.iter().find(|f| f.id == feed_id).unwrap();
+        assert_eq!(feed.last_error.as_deref(), Some("HTTP 503"));
+        assert_eq!(feed.error_count, 1);
+
+        // A second error increments the count.
+        let error_snapshot2 = record_feed_error(
+            serialize_snapshot(&snapshot),
+            feed_id.clone(),
+            "HTTP 503".to_owned(),
+        )
+        .unwrap();
+        let snapshot2 = decode_reader_snapshot(error_snapshot2).unwrap();
+        let feed2 = snapshot2.feeds.iter().find(|f| f.id == feed_id).unwrap();
+        assert_eq!(feed2.error_count, 2);
+    }
+
+    #[test]
+    fn successful_import_clears_feed_error() {
+        let import_result = import_feed_from_xml_sync(
+            empty_reader_snapshot_json(),
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        let feed_id = import_result.feed.id.clone();
+
+        let error_snapshot = record_feed_error(
+            import_result.snapshot_json,
+            feed_id.clone(),
+            "HTTP 503".to_owned(),
+        )
+        .unwrap();
+
+        // Re-import successfully — the error state should be cleared.
+        let reimport = import_feed_from_xml_sync(
+            error_snapshot,
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        let snapshot = decode_reader_snapshot(reimport.snapshot_json).unwrap();
+        let feed = snapshot.feeds.iter().find(|f| f.id == feed_id).unwrap();
+        assert!(feed.last_error.is_none());
+        assert_eq!(feed.error_count, 0);
+    }
+
+    #[test]
+    fn list_articles_filters_unread_only() {
+        let import_result = import_feed_from_xml_sync(
+            empty_reader_snapshot_json(),
+            "https://example.com/feed.xml".to_owned(),
+            SAMPLE_RSS.to_owned(),
+        )
+        .unwrap();
+        let article_id = import_result.inserted_articles[0].id.clone();
+
+        let marked = mark_article_read(import_result.snapshot_json, article_id, true).unwrap();
+
+        let all_items = list_articles(marked.clone(), None, false, false).unwrap();
+        assert_eq!(all_items.len(), 2);
+
+        let unread_items = list_articles(marked, None, false, true).unwrap();
+        assert_eq!(unread_items.len(), 1);
+        assert!(!unread_items[0].is_read);
+    }
+
+    #[test]
+    fn legacy_snapshot_without_error_fields_decodes() {
+        let legacy = r#"{"feeds":[{"id":"f1","title":"Legacy","source_url":"https://example.com/feed","site_url":"https://example.com","description":"","unread_count":0,"article_count":0,"last_synced_at":null,"article_view_mode":"global"}],"articles":[],"last_updated_at":null}"#;
+        let snapshot = decode_reader_snapshot(legacy.to_owned()).unwrap();
+        assert_eq!(snapshot.feeds.len(), 1);
+        assert!(snapshot.feeds[0].last_error.is_none());
+        assert_eq!(snapshot.feeds[0].error_count, 0);
     }
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/reader.dart';
 
@@ -6,10 +6,12 @@ class RefreshSummary {
   const RefreshSummary({
     required this.refreshedFeeds,
     required this.insertedArticles,
+    required this.failedFeeds,
   });
 
   final int refreshedFeeds;
   final int insertedArticles;
+  final int failedFeeds;
 }
 
 class ReaderController extends ChangeNotifier {
@@ -30,12 +32,20 @@ class ReaderController extends ChangeNotifier {
   String? _selectedArticleId;
   String? _selectedFeedId;
   bool _showStarredOnly = false;
+  bool _showUnreadOnly = false;
   bool _isWorking = false;
   bool _isLoaded = false;
 
   /// App-wide default mode used when a feed is configured as
   /// [ArticleViewMode.global]. `rendered` keeps content in-app by default.
   ArticleViewMode _appDefaultViewMode = ArticleViewMode.rendered;
+
+  /// Reader font scale multiplier for rendered articles. Persisted so the
+  /// user's preference survives restarts. Clamped to 0.8–1.6 in 0.1 steps.
+  double _readingFontScale = 1.0;
+
+  /// Light/dark/system theme mode. Persisted across restarts.
+  ThemeMode _themeMode = ThemeMode.system;
 
   ArticleViewMode get appDefaultViewMode => _appDefaultViewMode;
 
@@ -47,6 +57,35 @@ class ReaderController extends ChangeNotifier {
       return;
     }
     _appDefaultViewMode = resolved;
+    _persistSetting('app_default_view_mode', resolved.name);
+    notifyListeners();
+  }
+
+  /// Current reading font scale for rendered articles.
+  double get readingFontScale => _readingFontScale;
+
+  /// Sets the reading font scale, clamped to 0.8–1.6. Persists the value.
+  set readingFontScale(double value) {
+    final clamped = (value * 10).round() / 10;
+    final bounded = clamped.clamp(0.8, 1.6);
+    if ((bounded - _readingFontScale).abs() < 0.01) {
+      return;
+    }
+    _readingFontScale = bounded;
+    _persistSetting('reading_font_scale', bounded.toStringAsFixed(1));
+    notifyListeners();
+  }
+
+  /// Current light/dark/system theme mode.
+  ThemeMode get themeMode => _themeMode;
+
+  /// Sets the theme mode and persists it.
+  set themeMode(ThemeMode mode) {
+    if (mode == _themeMode) {
+      return;
+    }
+    _themeMode = mode;
+    _persistSetting('theme_mode', mode.name);
     notifyListeners();
   }
 
@@ -80,6 +119,7 @@ class ReaderController extends ChangeNotifier {
   bool get hasFeeds => feeds.isNotEmpty;
   bool get hasArticles => articles.isNotEmpty;
   bool get isShowingStarredOnly => _showStarredOnly;
+  bool get isShowingUnreadOnly => _showUnreadOnly;
   String? get selectedFeedId => _selectedFeedId;
   Feed? get selectedFeed => _findFeed(_selectedFeedId);
   int get totalUnreadCount =>
@@ -95,6 +135,9 @@ class ReaderController extends ChangeNotifier {
   String get currentViewTitle {
     if (_showStarredOnly) {
       return 'Starred';
+    }
+    if (_showUnreadOnly) {
+      return 'Unread';
     }
     if (selectedFeed != null) {
       return selectedFeed!.title;
@@ -117,6 +160,7 @@ class ReaderController extends ChangeNotifier {
   Future<void> load() async {
     _setWorking(true);
     try {
+      await _loadPersistedSettings();
       _snapshotJson = await _repository.loadSnapshotJson();
       _syncFromSnapshotJson();
       _isLoaded = true;
@@ -125,9 +169,65 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadPersistedSettings() async {
+    final fontScaleStr = await _repository.getSetting('reading_font_scale');
+    if (fontScaleStr != null) {
+      final parsed = double.tryParse(fontScaleStr);
+      if (parsed != null) {
+        _readingFontScale = parsed.clamp(0.8, 1.6);
+      }
+    }
+    final themeModeStr = await _repository.getSetting('theme_mode');
+    if (themeModeStr != null) {
+      _themeMode = _parseThemeMode(themeModeStr) ?? _themeMode;
+    }
+    final defaultViewStr = await _repository.getSetting('app_default_view_mode');
+    if (defaultViewStr != null) {
+      _appDefaultViewMode = _parseViewModeName(defaultViewStr) ?? _appDefaultViewMode;
+    }
+  }
+
+  Future<void> _persistSetting(String key, String value) async {
+    try {
+      await _repository.setSetting(key, value);
+    } catch (_) {
+      // Settings are best-effort; snapshot persistence is the durable path.
+    }
+  }
+
+  static ThemeMode? _parseThemeMode(String name) {
+    switch (name) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      case 'system':
+        return ThemeMode.system;
+      default:
+        return null;
+    }
+  }
+
+  static ArticleViewMode? _parseViewModeName(String name) {
+    switch (name) {
+      case 'rendered':
+        return ArticleViewMode.rendered;
+      case 'webpage':
+        return ArticleViewMode.webpage;
+      case 'external':
+      case 'external_':
+        return ArticleViewMode.external_;
+      case 'global':
+        return ArticleViewMode.global;
+      default:
+        return null;
+    }
+  }
+
   void showAllArticles() {
     _selectedFeedId = null;
     _showStarredOnly = false;
+    _showUnreadOnly = false;
     _syncFromSnapshotJson();
     notifyListeners();
   }
@@ -135,6 +235,15 @@ class ReaderController extends ChangeNotifier {
   void showStarredArticles() {
     _selectedFeedId = null;
     _showStarredOnly = true;
+    _showUnreadOnly = false;
+    _syncFromSnapshotJson();
+    notifyListeners();
+  }
+
+  void showUnreadArticles() {
+    _selectedFeedId = null;
+    _showStarredOnly = false;
+    _showUnreadOnly = true;
     _syncFromSnapshotJson();
     notifyListeners();
   }
@@ -142,6 +251,7 @@ class ReaderController extends ChangeNotifier {
   void showFeed(String feedId) {
     _selectedFeedId = feedId;
     _showStarredOnly = false;
+    _showUnreadOnly = false;
     _syncFromSnapshotJson();
     notifyListeners();
   }
@@ -155,6 +265,7 @@ class ReaderController extends ChangeNotifier {
       );
       _selectedFeedId = result.feed.id;
       _showStarredOnly = false;
+      _showUnreadOnly = false;
       _selectedArticleId = result.insertedArticles.isNotEmpty
           ? result.insertedArticles.first.id
           : null;
@@ -173,6 +284,7 @@ class ReaderController extends ChangeNotifier {
     var workingSnapshotJson = _snapshotJson;
     var refreshedFeeds = 0;
     var insertedArticles = 0;
+    var failedFeeds = 0;
 
     try {
       final targetFeeds = _selectedFeedId == null
@@ -180,14 +292,27 @@ class ReaderController extends ChangeNotifier {
           : feeds.where((feed) => feed.id == _selectedFeedId).toList();
 
       for (final feed in targetFeeds) {
-        final result = await _repository.importFeed(
-          snapshotJson: workingSnapshotJson,
-          feedUrl: feed.sourceUrl,
-        );
-        workingSnapshotJson = result.snapshotJson;
-        refreshedFeeds += 1;
-        insertedArticles += result.insertedArticles.length;
-        await _repository.saveSnapshotJson(workingSnapshotJson);
+        try {
+          final result = await _repository.importFeed(
+            snapshotJson: workingSnapshotJson,
+            feedUrl: feed.sourceUrl,
+          );
+          workingSnapshotJson = result.snapshotJson;
+          refreshedFeeds += 1;
+          insertedArticles += result.insertedArticles.length;
+          await _repository.saveSnapshotJson(workingSnapshotJson);
+        } catch (error) {
+          failedFeeds += 1;
+          final errorMessage = error is ReaderAppException
+              ? error.message
+              : error.toString();
+          workingSnapshotJson = recordFeedError(
+            snapshotJson: workingSnapshotJson,
+            feedId: feed.id,
+            errorMessage: errorMessage,
+          );
+          await _repository.saveSnapshotJson(workingSnapshotJson);
+        }
       }
 
       _snapshotJson = workingSnapshotJson;
@@ -197,6 +322,7 @@ class ReaderController extends ChangeNotifier {
       return RefreshSummary(
         refreshedFeeds: refreshedFeeds,
         insertedArticles: insertedArticles,
+        failedFeeds: failedFeeds,
       );
     } finally {
       _setWorking(false);
@@ -217,6 +343,7 @@ class ReaderController extends ChangeNotifier {
       );
       _selectedFeedId = null;
       _showStarredOnly = false;
+      _showUnreadOnly = false;
       _selectedArticleId = null;
       await _replaceSnapshot(nextSnapshotJson);
     } finally {
@@ -319,6 +446,46 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
+  /// Moves the selected article by [offset] positions within the current
+  /// article list. Opens (and marks read) the target article. No-op when the
+  /// resulting index is out of bounds.
+  Future<void> selectAdjacentArticle(int offset) async {
+    if (_articles.isEmpty || _selectedArticleId == null) {
+      return;
+    }
+    final currentIndex = _articles.indexWhere(
+      (article) => article.id == _selectedArticleId,
+    );
+    if (currentIndex < 0) {
+      return;
+    }
+    final targetIndex = currentIndex + offset;
+    if (targetIndex < 0 || targetIndex >= _articles.length) {
+      return;
+    }
+    await openArticle(_articles[targetIndex].id);
+  }
+
+  bool get canSelectPreviousArticle {
+    if (_articles.isEmpty || _selectedArticleId == null) {
+      return false;
+    }
+    final currentIndex = _articles.indexWhere(
+      (article) => article.id == _selectedArticleId,
+    );
+    return currentIndex > 0;
+  }
+
+  bool get canSelectNextArticle {
+    if (_articles.isEmpty || _selectedArticleId == null) {
+      return false;
+    }
+    final currentIndex = _articles.indexWhere(
+      (article) => article.id == _selectedArticleId,
+    );
+    return currentIndex >= 0 && currentIndex < _articles.length - 1;
+  }
+
   String feedTitleFor(String feedId) {
     return _findFeed(feedId)?.title ?? 'Unknown feed';
   }
@@ -354,6 +521,7 @@ class ReaderController extends ChangeNotifier {
       snapshotJson: _snapshotJson,
       feedId: _selectedFeedId,
       showStarredOnly: _showStarredOnly,
+      showUnreadOnly: _showUnreadOnly,
     );
 
     if (_articles.isEmpty) {
