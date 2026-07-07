@@ -15,6 +15,12 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 url = "2.5"
 uuid = { version = "1.23", features = ["v4", "serde"] }
+# P0b: SQLite persistence. `bundled` compiles SQLite from source (FTS5/JSON1/RTREE
+# enabled) so the same build works on android/ios/linux/macos/windows with no
+# system-library dependency.
+rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite_migration = "2.6"
+parking_lot = "0.12"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

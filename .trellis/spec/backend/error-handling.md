@@ -8,7 +8,7 @@
 
 - All FRB-facing Rust functions that can fail return `Result<T, AppError>`.
 - `AppError` lives in `rust/src/api/error.rs` and is re-exported from `rust/src/api/mod.rs`.
-- It replaces the legacy `ReaderError { code, message }` struct (still in `reader.rs` until P0b removes it).
+- It replaces the legacy `ReaderError { code, message }` struct (still in `reader.rs` until P1a removes it).
 
 ### 2. The `AppError` enum
 
@@ -69,6 +69,6 @@ FRB generates this as a `@freezed sealed class` implementing `FrbException`, so 
 
 ---
 
-## Legacy: `ReaderError` (deprecated — removed in P0b)
+## Legacy: `ReaderError` (deprecated — removed in P1a)
 
-The throwaway JSON-snapshot functions in `rust/src/api/reader.rs` still use `ReaderError { code, message }`. Error codes: `invalid_input`, `not_found`, `parse_error`. These are superseded by `AppError` and will be removed when P0b replaces the snapshot model with SQLite persistence.
+The throwaway JSON-snapshot functions in `rust/src/api/reader.rs` still use `ReaderError { code, message }`. Error codes: `invalid_input`, `not_found`, `parse_error`. These are superseded by `AppError`. P0b landed the SQLite persistence layer but intentionally keeps `reader.rs` compiling (the Flutter UI still calls the snapshot APIs); P1a rewires the UI onto the new DB APIs and removes `reader.rs` along with `ReaderError`.

@@ -11,6 +11,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 String greet({required String name}) =>
     RustLib.instance.api.crateApiAppGreet(name: name);
 
+/// Opens the SQLite database at `path`, applies pragmas (WAL / foreign_keys /
+/// synchronous), runs pending migrations, and stores the shared connection.
+///
+/// Plain `pub fn` (no `#[frb(sync)]`) so it runs on the FRB worker thread pool
+/// and never blocks the Flutter UI isolate. Dart calls `await initDatabase(path)`
+/// once after `RustLib.init()`.
+Future<void> initDatabase({required String path}) =>
+    RustLib.instance.api.crateApiAppInitDatabase(path: path);
+
 /// Returns the Rust crate version. Also serves as the codegen smoke-test that
 /// ensures `AppError` is generated as a throwable Dart enum.
 String appVersion() => RustLib.instance.api.crateApiAppAppVersion();

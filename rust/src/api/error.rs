@@ -1,6 +1,7 @@
 //! Project-wide error type for the flutter_rust_bridge API boundary.
 //!
-//! Replaces the legacy `ReaderError` struct (still in `reader.rs` until P0b).
+//! Replaces the legacy `ReaderError` struct (still in `reader.rs` until P1a
+//! removes it).
 //! Every FRB-facing function that can fail returns `Result<T, AppError>`.
 //! The `anyhow` crate may be used internally in the service layer, but errors
 //! must be converted to `AppError` before crossing the FRB boundary so that

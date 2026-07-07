@@ -2,14 +2,14 @@
 //!
 //! These are the canonical types for the persisted reader model. They will
 //! replace the throwaway JSON-snapshot types still living in `reader.rs`
-//! (removed in P0b once SQLite persistence lands).
+//! (removed in P1a once the Flutter feed UI is rewired off the snapshot APIs).
 //!
 //! ## Naming note
 //!
 //! `Feed`, `ArticleViewMode`, and `FeedDraft` intentionally share their names
 //! with legacy types in `reader.rs`. While `reader.rs` still exists they are
 //! **not** marked `#[frb(unignore)]` to avoid duplicate Dart class generation.
-//! P0b removes `reader.rs` and exposes them here.
+//! P1a removes `reader.rs` and exposes them here.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Note: `Default` is intentionally NOT implemented here to avoid a duplicate
 /// key conflict with `reader::ArticleViewMode` during FRB codegen while both
-/// modules coexist. P0b removes `reader.rs` and a `Default` impl can be added
+/// modules coexist. P1a removes `reader.rs` and a `Default` impl can be added
 /// back at that point.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]

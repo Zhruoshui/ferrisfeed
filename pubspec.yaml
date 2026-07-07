@@ -40,6 +40,9 @@ dependencies:
   html: ^0.15.4
   url_launcher: ^6.3.1
   webview_flutter: ^4.10.0
+  # P0b: locate the per-platform documents directory for the SQLite DB file.
+  path_provider: ^2.1.5
+  path: ^1.9.0
   rust_lib_rss_reader:
     path: rust_builder
   flutter_rust_bridge:

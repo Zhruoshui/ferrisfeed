@@ -1,8 +1,9 @@
-//! TODO(P0b): remove — replaced by the persisted model in `types.rs` + `db/`.
+//! TODO(P1a): remove — replaced by the persisted model in `types.rs` + `db/`.
 //!
 //! This module contains the throwaway JSON-snapshot prototype. Every function
 //! is `#[frb(sync)]` and operates on a `snapshot_json: String` passed from
-//! Dart. P0b replaces it with SQLite-backed persistence and removes this file
+//! Dart. P0b landed the SQLite-backed persistence layer; P1a rewires the
+//! Flutter feed UI off these snapshot APIs and then removes this file
 //! entirely. Until then it is kept compiling so the Flutter UI continues to
 //! work without rewrites.
 

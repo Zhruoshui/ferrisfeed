@@ -1,0 +1,297 @@
+//! Repository unit tests against an in-memory SQLite database.
+//!
+//! These exercise the row mappers, CRUD, filters, FK cascade, and count
+//! recompute without touching the global `OnceLock` connection (which can only
+//! be initialized once per process). Each test builds a fresh in-memory DB with
+//! migrations applied and `foreign_keys=ON`.
+
+use chrono::Utc;
+use rusqlite::Connection;
+
+use crate::api::reader::{ArticleViewMode, Feed};
+use crate::api::types::EntryDraft;
+use crate::api::AppError;
+use crate::db::repositories::{category, entry, feed};
+
+/// A fresh in-memory database with the MVP schema and FK enforcement on.
+fn test_db() -> Connection {
+    let mut conn = Connection::open_in_memory().unwrap();
+    conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+    crate::db::migrations::run(&mut conn).unwrap();
+    conn
+}
+
+fn sample_feed(id: &str, url: &str) -> Feed {
+    Feed {
+        id: id.to_owned(),
+        title: format!("Feed {id}"),
+        source_url: url.to_owned(),
+        site_url: "https://example.com".to_owned(),
+        description: "desc".to_owned(),
+        unread_count: 0,
+        article_count: 0,
+        last_synced_at: None,
+        article_view_mode: ArticleViewMode::default(),
+        last_error: None,
+        error_count: 0,
+    }
+}
+
+fn draft(title: &str, url: &str) -> EntryDraft {
+    EntryDraft {
+        title: title.to_owned(),
+        url: url.to_owned(),
+        author: Some("Author".to_owned()),
+        summary: Some("summary".to_owned()),
+        content: Some("content".to_owned()),
+        published_at: Some(Utc::now()),
+    }
+}
+
+#[test]
+fn feed_upsert_list_get_roundtrip() {
+    let conn = test_db();
+    let mut feed = sample_feed("f1", "https://example.com/feed.xml");
+    feed::upsert_feed(&conn, &feed).unwrap();
+
+    let listed = feed::list_feeds(&conn).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, "f1");
+    assert_eq!(listed[0].title, "Feed f1");
+
+    let fetched = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(fetched.source_url, "https://example.com/feed.xml");
+    assert_eq!(fetched.article_view_mode, ArticleViewMode::Global);
+
+    // Update via upsert changes the title but keeps created_at.
+    feed.title = "Updated".to_owned();
+    feed::upsert_feed(&conn, &feed).unwrap();
+    let fetched = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(fetched.title, "Updated");
+    assert_eq!(feed::list_feeds(&conn).unwrap().len(), 1);
+
+    // Missing feed resolves to None.
+    assert!(feed::get_feed_by_id(&conn, "missing").unwrap().is_none());
+}
+
+#[test]
+fn feed_view_mode_round_trips() {
+    let conn = test_db();
+    let feed = sample_feed("f1", "https://example.com/feed.xml");
+    feed::upsert_feed(&conn, &feed).unwrap();
+    feed::set_feed_view_mode(&conn, "f1", ArticleViewMode::Rendered).unwrap();
+    let fetched = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(fetched.article_view_mode, ArticleViewMode::Rendered);
+}
+
+#[test]
+fn feed_delete_cascades_to_entries() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1"), draft("b", "https://a/2")])
+        .unwrap();
+
+    feed::delete_feed(&conn, "f1").unwrap();
+    assert!(feed::get_feed_by_id(&conn, "f1").unwrap().is_none());
+    // Cascade removed the entries.
+    let items = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    assert!(items.is_empty());
+}
+
+#[test]
+fn entry_upsert_dedups_by_url() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+
+    let inserted = entry::upsert_entries(
+        &conn,
+        "f1",
+        &[draft("first", "https://a/1"), draft("second", "https://a/2")],
+    )
+    .unwrap();
+    assert_eq!(inserted, 2);
+
+    // Re-inserting the same URLs inserts nothing.
+    let inserted_again = entry::upsert_entries(
+        &conn,
+        "f1",
+        &[draft("first", "https://a/1"), draft("third", "https://a/3")],
+    )
+    .unwrap();
+    assert_eq!(inserted_again, 1);
+
+    let items = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    assert_eq!(items.len(), 3);
+}
+
+#[test]
+fn entry_list_filters_and_counts() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[draft("a", "https://a/1"), draft("b", "https://a/2")],
+    )
+    .unwrap();
+
+    // Fresh entries are all unread; feed counts recompute to 2/2.
+    let feed = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(feed.article_count, 2);
+    assert_eq!(feed.unread_count, 2);
+
+    let all = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    assert_eq!(all.len(), 2);
+    let unread = entry::list_entries(&conn, None, true, false, 50, 0).unwrap();
+    assert_eq!(unread.len(), 2);
+
+    // Mark the first unread entry read.
+    let first_id = all[0].id.clone();
+    entry::mark_entry_read(&conn, &first_id, true).unwrap();
+
+    let unread = entry::list_entries(&conn, None, true, false, 50, 0).unwrap();
+    assert_eq!(unread.len(), 1);
+    let feed = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(feed.unread_count, 1);
+    assert_eq!(feed.article_count, 2);
+
+    // Nothing starred yet.
+    let starred = entry::list_entries(&conn, None, false, true, 50, 0).unwrap();
+    assert!(starred.is_empty());
+
+    // Star the other entry.
+    let other_id = all[1].id.clone();
+    entry::toggle_entry_star(&conn, &other_id).unwrap();
+    let starred = entry::list_entries(&conn, None, false, true, 50, 0).unwrap();
+    assert_eq!(starred.len(), 1);
+    assert_eq!(starred[0].id, other_id);
+
+    // Toggling again un-stars.
+    entry::toggle_entry_star(&conn, &other_id).unwrap();
+    let starred = entry::list_entries(&conn, None, false, true, 50, 0).unwrap();
+    assert!(starred.is_empty());
+}
+
+#[test]
+fn entry_get_returns_full_content() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1")]).unwrap();
+    let listed = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    let full = entry::get_entry_by_id(&conn, &listed[0].id).unwrap();
+    assert_eq!(full.title, "a");
+    assert_eq!(full.author.as_deref(), Some("Author"));
+    assert_eq!(full.content.as_deref(), Some("content"));
+    assert!(!full.is_read);
+}
+
+#[test]
+fn entry_get_missing_is_not_found() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    match entry::get_entry_by_id(&conn, "missing") {
+        Err(AppError::NotFound { resource, .. }) => assert_eq!(resource, "entry"),
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+}
+
+#[test]
+fn entry_fk_constraint_rejects_orphan_feed_id() {
+    let conn = test_db();
+    let err = entry::upsert_entries(&conn, "no-such-feed", &[draft("a", "https://a/1")])
+        .unwrap_err();
+    assert!(matches!(err, AppError::Database(_)), "got {err:?}");
+}
+
+#[test]
+fn mark_all_read_updates_counts() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    feed::upsert_feed(&conn, &sample_feed("f2", "https://b/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1")]).unwrap();
+    entry::upsert_entries(&conn, "f2", &[draft("b", "https://b/1")]).unwrap();
+
+    // Scope to f1 only.
+    entry::mark_all_read(&conn, Some("f1")).unwrap();
+    let f1 = feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+    assert_eq!(f1.unread_count, 0);
+    let f2 = feed::get_feed_by_id(&conn, "f2").unwrap().unwrap();
+    assert_eq!(f2.unread_count, 1);
+
+    // Mark everything read.
+    entry::mark_all_read(&conn, None).unwrap();
+    let f2 = feed::get_feed_by_id(&conn, "f2").unwrap().unwrap();
+    assert_eq!(f2.unread_count, 0);
+}
+
+#[test]
+fn category_crud_roundtrip() {
+    let conn = test_db();
+    use crate::api::types::Category;
+    category::upsert_category(&conn, &Category { id: "c1".to_owned(), title: "News".to_owned() })
+        .unwrap();
+    category::upsert_category(&conn, &Category { id: "c2".to_owned(), title: "Tech".to_owned() })
+        .unwrap();
+
+    let listed = category::list_categories(&conn).unwrap();
+    assert_eq!(listed.len(), 2);
+    // Ordered by title (News before Tech).
+    assert_eq!(listed[0].id, "c1");
+
+    // Update via upsert.
+    category::upsert_category(&conn, &Category { id: "c1".to_owned(), title: "World".to_owned() })
+        .unwrap();
+    let fetched = category::list_categories(&conn).unwrap();
+    let c1 = fetched.iter().find(|c| c.id == "c1").unwrap();
+    assert_eq!(c1.title, "World");
+
+    category::delete_category(&conn, "c1").unwrap();
+    assert_eq!(category::list_categories(&conn).unwrap().len(), 1);
+}
+
+#[test]
+fn migrations_are_idempotent() {
+    // Running migrations twice (e.g. on a rerun) must not error.
+    let mut conn = Connection::open_in_memory().unwrap();
+    crate::db::migrations::run(&mut conn).unwrap();
+    crate::db::migrations::run(&mut conn).unwrap();
+}
+
+#[test]
+fn init_db_then_with_db_round_trips() {
+    // Exercises the real init path (file-based DB, WAL/FK pragmas, migrations)
+    // and the global `with_db` borrow — the path Dart hits via `initDatabase`.
+    // Uses a process-unique temp path; the OnceLock is process-global, so this
+    // is the only test that touches `init_db`/`with_db`.
+    use crate::db::connection::{init_db, with_db};
+
+    let path = std::env::temp_dir()
+        .join(format!("rss_reader_p0b_test_{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(path.with_extension("db-shm"));
+
+    init_db(path.to_str().unwrap()).unwrap();
+
+    let feed = sample_feed("f1", "https://example.com/feed.xml");
+    with_db(|conn| feed::upsert_feed(conn, &feed)).unwrap();
+    with_db(|conn| {
+        entry::upsert_entries(conn, "f1", &[draft("a", "https://example.com/1")])
+    })
+    .unwrap();
+
+    let listed =
+        with_db(|conn| entry::list_entries(conn, None, false, false, 50, 0)).unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].feed_title, "Feed f1");
+
+    // init_db is once-only; a second call errors.
+    let dup = init_db(path.to_str().unwrap());
+    assert!(dup.is_err());
+
+    // Best-effort cleanup (the connection stays open in the global, but on
+    // Linux unlinking an open file succeeds).
+    let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(path.with_extension("db-shm"));
+}

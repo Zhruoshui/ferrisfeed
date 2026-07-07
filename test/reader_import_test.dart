@@ -270,6 +270,14 @@ class _MockRustApi implements RustLibApi {
   int _feedCounter = 0;
   int _articleCounter = 0;
 
+  /// P0b added the SQLite-backed feed/entry/category APIs to `RustLibApi`.
+  /// These tests exercise only the legacy snapshot APIs, so unimplemented
+  /// members fall through to `noSuchMethod` rather than requiring stubs for
+  /// every new database function.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
+
   @override
   String crateApiReaderEmptyReaderSnapshotJson() =>
       jsonEncode({'feeds': [], 'articles': [], 'lastUpdatedAt': null});
