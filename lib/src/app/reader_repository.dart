@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:rss_reader/src/rust/api/reader.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,35 +8,36 @@ typedef SnapshotWriter = Future<void> Function(String snapshotJson);
 typedef SettingReader = Future<String?> Function(String key);
 typedef SettingWriter = Future<void> Function(String key, String value);
 
+/// Persists the in-memory reader snapshot (still used by the entry-reading UI
+/// until P2a) and app settings.
+///
+/// P1a moved feed HTTP fetching into Rust (`api::feed::subscribe_feed`), so
+/// this class no longer performs any network I/O — it only reads/writes the
+/// snapshot blob and key/value settings via `shared_preferences`.
 class ReaderRepository {
   ReaderRepository._(
     this._readSnapshot,
     this._writeSnapshot, {
-    http.Client? httpClient,
     SettingReader? readSetting,
     SettingWriter? writeSetting,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _readSetting = readSetting ?? ((_) async => null),
+  })  : _readSetting = readSetting ?? ((_) async => null),
         _writeSetting = writeSetting ?? ((_, _) async {});
 
   static const _snapshotStorageKey = 'reader_snapshot_v1';
   static const _settingPrefix = 'reader_setting_';
-  static const _requestTimeout = Duration(seconds: 20);
 
   final SnapshotReader _readSnapshot;
   final SnapshotWriter _writeSnapshot;
   final SettingReader _readSetting;
   final SettingWriter _writeSetting;
-  final http.Client _httpClient;
 
-  static Future<ReaderRepository> create({http.Client? httpClient}) async {
+  static Future<ReaderRepository> create() async {
     final preferences = await SharedPreferences.getInstance();
     return ReaderRepository._(
       () async => preferences.getString(_snapshotStorageKey),
       (snapshotJson) async {
         await preferences.setString(_snapshotStorageKey, snapshotJson);
       },
-      httpClient: httpClient,
       readSetting: (key) async => preferences.getString('$_settingPrefix$key'),
       writeSetting: (key, value) async {
         await preferences.setString('$_settingPrefix$key', value);
@@ -46,10 +45,7 @@ class ReaderRepository {
     );
   }
 
-  factory ReaderRepository.memory({
-    String? initialSnapshotJson,
-    http.Client? httpClient,
-  }) {
+  factory ReaderRepository.memory({String? initialSnapshotJson}) {
     var inMemorySnapshot = initialSnapshotJson;
     final inMemorySettings = <String, String>{};
     return ReaderRepository._(
@@ -57,7 +53,6 @@ class ReaderRepository {
       (snapshotJson) async {
         inMemorySnapshot = snapshotJson;
       },
-      httpClient: httpClient,
       readSetting: (key) async => inMemorySettings[key],
       writeSetting: (key, value) async {
         inMemorySettings[key] = value;
@@ -85,42 +80,7 @@ class ReaderRepository {
     return _writeSetting(key, value);
   }
 
-  Future<ImportFeedResult> importFeed({
-    required String snapshotJson,
-    required String feedUrl,
-  }) async {
-    final response = await _httpClient
-        .get(
-          Uri.parse(feedUrl),
-          headers: const {
-            'accept':
-                'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
-            'user-agent': 'rss_reader/1.0 (flutter)',
-          },
-        )
-        .timeout(_requestTimeout);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ReaderAppException(
-        'Failed to fetch feed: HTTP ${response.statusCode}',
-      );
-    }
-
-    final xmlContent = utf8.decode(response.bodyBytes);
-    if (xmlContent.trim().isEmpty) {
-      throw const ReaderAppException('The feed response was empty.');
-    }
-
-    return importFeedFromXml(
-      snapshotJson: snapshotJson,
-      feedUrl: feedUrl,
-      xmlContent: xmlContent,
-    );
-  }
-
-  void dispose() {
-    _httpClient.close();
-  }
+  void dispose() {}
 }
 
 class ReaderAppException implements Exception {

@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/error.dart';
 import 'package:rss_reader/src/rust/api/reader.dart';
+import 'package:rss_reader/src/rust/api/types.dart';
 
 class ReaderApp extends StatelessWidget {
   const ReaderApp({super.key, required this.controller});
@@ -315,9 +317,69 @@ class _ReaderHomeState extends State<ReaderHome> {
       return;
     }
 
-    await _runGuarded(() async {
-      await widget.controller.addFeed(submittedUrl);
-    }, successMessage: 'Feed added.');
+    // P1a: discover feeds at the URL via Rust (fetch + auto-detect feed vs
+    // HTML page). If the URL is already a feed, a single candidate is returned;
+    // if it's an HTML page, the <link rel="alternate"> feed links are scanned.
+    List<FeedCandidate> candidates;
+    try {
+      candidates = await widget.controller.discoverFeeds(submittedUrl);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(_describeError(error), isError: true);
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    if (candidates.isEmpty) {
+      _showMessage('No feeds found at that URL.', isError: true);
+      return;
+    }
+
+    String chosenUrl;
+    if (candidates.length == 1) {
+      chosenUrl = candidates.first.url;
+    } else {
+      final picked = await _pickFeedCandidate(candidates);
+      if (!mounted || picked == null) {
+        return;
+      }
+      chosenUrl = picked;
+    }
+
+    await _runGuarded(
+      () => widget.controller.subscribeFeed(chosenUrl),
+      successMessage: 'Feed added.',
+    );
+  }
+
+  /// Shows a picker when auto-discovery finds multiple feeds on a page.
+  Future<String?> _pickFeedCandidate(List<FeedCandidate> candidates) {
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Choose a feed'),
+          children: [
+            for (final candidate in candidates)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(context).pop(candidate.url),
+                child: ListTile(
+                  dense: true,
+                  title: Text(
+                    candidate.title?.isNotEmpty == true
+                        ? candidate.title!
+                        : candidate.url,
+                  ),
+                  subtitle: Text(candidate.url),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _refreshFeeds() async {
@@ -1451,6 +1513,20 @@ String _plainText(String value) {
 }
 
 String _describeError(Object error) {
+  if (error is AppError) {
+    return switch (error) {
+      AppError_NotFound(:final resource, :final id) =>
+        '$resource not found: $id',
+      AppError_InvalidInput(:final field0) => field0,
+      AppError_Network(:final status, :final message) =>
+        'Network error ($status): $message',
+      AppError_FeedParse(:final message) => 'Could not parse feed: $message',
+      AppError_Database(:final field0) => 'Database error: $field0',
+      AppError_Io(:final field0) => 'I/O error: $field0',
+      AppError_Unauthorized() => 'Unauthorized',
+      AppError_Conflict(:final field0) => field0,
+    };
+  }
   if (error is ReaderError) {
     return error.message;
   }

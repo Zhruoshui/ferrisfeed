@@ -130,3 +130,13 @@ Run `./scripts/frb.sh` (or `flutter_rust_bridge_codegen generate`) after **every
 > `pub fn` (worker pool) that Dart calls after `RustLib.init()` with a path
 > from `path_provider`. Keep `init_app` for FRB-only setup; anything needing
 > Flutter-provided data (paths, config) is its own function.
+
+> **Gotcha — FRB async fns already run on a tokio runtime; don't create a
+> second one.** FRB v2.12's `DefaultHandler` holds a `SimpleAsyncRuntime`
+> wrapping `tokio::runtime::Runtime::new()` (multi-threaded, with I/O driver +
+> timer). `wrap_async` spawns the `async fn` body ON that runtime, so you can
+> `.await` `reqwest`/`tokio` I/O **directly** inside `async fn` api functions —
+> no need to build a separate `OnceLock<tokio::runtime::Runtime>` and
+> `handle().spawn(...).await`. (P1a's `feed/runtime.rs` does this redundantly;
+> it works but spawns a wasteful second 2-thread runtime — a future cleanup
+> should await `*_impl` directly and delete `feed/runtime.rs`.)

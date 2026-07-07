@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// A simple category/folder grouping.
 class Category {
@@ -185,6 +185,35 @@ class EntryListItem {
           publishedAt == other.publishedAt &&
           isRead == other.isRead &&
           isStarred == other.isStarred;
+}
+
+/// A feed URL discovered via auto-discovery (`<link rel="alternate">`), or the
+/// input URL itself when it already serves a feed. Returned by
+/// `api::feed::discover_feeds` so the Flutter add-feed dialog can let the user
+/// pick among multiple candidates before subscribing.
+class FeedCandidate {
+  /// Absolute feed URL.
+  final String url;
+
+  /// Optional human-readable title from the `<link title>` attribute.
+  final String? title;
+
+  /// MIME type hint (`application/rss+xml`, `application/atom+xml`, ...).
+  final String? mimeType;
+
+  const FeedCandidate({required this.url, this.title, this.mimeType});
+
+  @override
+  int get hashCode => url.hashCode ^ title.hashCode ^ mimeType.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FeedCandidate &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          title == other.title &&
+          mimeType == other.mimeType;
 }
 
 /// Progress payload pushed via `StreamSink` during a feed refresh.

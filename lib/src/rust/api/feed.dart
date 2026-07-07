@@ -7,6 +7,7 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'reader.dart';
+import 'types.dart';
 
 /// Returns every feed, ordered by title.
 Future<List<Feed>> listFeeds() => RustLib.instance.api.crateApiFeedListFeeds();
@@ -18,6 +19,20 @@ Future<Feed> getFeed({required String feedId}) =>
 /// Inserts or updates a feed by id.
 Future<void> upsertFeed({required Feed feed}) =>
     RustLib.instance.api.crateApiFeedUpsertFeed(feed: feed);
+
+/// Updates a feed's editable metadata (title, site_url, description).
+/// `NotFound` if the feed does not exist.
+Future<Feed> updateFeed({
+  required String feedId,
+  required String title,
+  required String siteUrl,
+  required String description,
+}) => RustLib.instance.api.crateApiFeedUpdateFeed(
+  feedId: feedId,
+  title: title,
+  siteUrl: siteUrl,
+  description: description,
+);
 
 /// Deletes a feed (and, via FK cascade, its entries). `NotFound` if missing.
 Future<void> deleteFeed({required String feedId}) =>
@@ -31,3 +46,15 @@ Future<void> setFeedViewMode({
   feedId: feedId,
   viewMode: viewMode,
 );
+
+/// Discovers feed URLs at a page. If `url` already serves a feed, returns it
+/// as a single candidate; otherwise scans the HTML for
+/// `<link rel="alternate" type="application/rss+xml|atom+xml">`.
+Future<List<FeedCandidate>> discoverFeeds({required String url}) =>
+    RustLib.instance.api.crateApiFeedDiscoverFeeds(url: url);
+
+/// Subscribes to a feed by URL: fetch + parse + normalize + persist (metadata
+/// only — entry sync is P1b). Returns the persisted `Feed`. Idempotent: an
+/// existing subscription with the same source URL returns its record.
+Future<Feed> subscribeFeed({required String url}) =>
+    RustLib.instance.api.crateApiFeedSubscribeFeed(url: url);

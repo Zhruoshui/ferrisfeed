@@ -85,6 +85,21 @@ pub struct FeedDraft {
     pub description: Option<String>,
 }
 
+/// A feed URL discovered via auto-discovery (`<link rel="alternate">`), or the
+/// input URL itself when it already serves a feed. Returned by
+/// `api::feed::discover_feeds` so the Flutter add-feed dialog can let the user
+/// pick among multiple candidates before subscribing.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeedCandidate {
+    /// Absolute feed URL.
+    pub url: String,
+    /// Optional human-readable title from the `<link title>` attribute.
+    pub title: Option<String>,
+    /// MIME type hint (`application/rss+xml`, `application/atom+xml`, ...).
+    pub mime_type: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Entry-related DTOs
 // ---------------------------------------------------------------------------

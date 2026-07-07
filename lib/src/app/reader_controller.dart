@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/feed.dart' as rust_feed;
 import 'package:rss_reader/src/rust/api/reader.dart';
+import 'package:rss_reader/src/rust/api/types.dart';
 
 class RefreshSummary {
   const RefreshSummary({
@@ -35,6 +37,12 @@ class ReaderController extends ChangeNotifier {
   bool _showUnreadOnly = false;
   bool _isWorking = false;
   bool _isLoaded = false;
+
+  /// Feeds shown in the sidebar — DB-backed via `listFeeds()` (P1a). Article
+  /// reading still uses the in-memory snapshot until P2a, so a newly subscribed
+  /// feed's ID will not match any snapshot articles (no entries are synced
+  /// until P1b). P1b+P2a reconcile the two sources.
+  List<Feed> _dbFeeds = const [];
 
   /// App-wide default mode used when a feed is configured as
   /// [ArticleViewMode.global]. `rendered` keeps content in-app by default.
@@ -111,7 +119,7 @@ class ReaderController extends ChangeNotifier {
   }
 
   ReaderSnapshot get snapshot => _snapshot;
-  List<Feed> get feeds => _snapshot.feeds;
+  List<Feed> get feeds => _dbFeeds;
   List<ArticleListItem> get articles => _articles;
   Article? get selectedArticle => _selectedArticle;
   bool get isWorking => _isWorking;
@@ -163,10 +171,15 @@ class ReaderController extends ChangeNotifier {
       await _loadPersistedSettings();
       _snapshotJson = await _repository.loadSnapshotJson();
       _syncFromSnapshotJson();
+      await _loadDbFeeds();
       _isLoaded = true;
     } finally {
       _setWorking(false);
     }
+  }
+
+  Future<void> _loadDbFeeds() async {
+    _dbFeeds = await rust_feed.listFeeds();
   }
 
   Future<void> _loadPersistedSettings() async {
@@ -256,20 +269,32 @@ class ReaderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addFeed(String feedUrl) async {
+  /// Discovers feed candidates at [url] via the Rust HTTP + parse/discover
+  /// pipeline. The add-feed dialog calls this, shows a picker when there are
+  /// multiple candidates, then calls [subscribeFeed].
+  Future<List<FeedCandidate>> discoverFeeds(String url) async {
     _setWorking(true);
     try {
-      final result = await _repository.importFeed(
-        snapshotJson: _snapshotJson,
-        feedUrl: feedUrl,
-      );
-      _selectedFeedId = result.feed.id;
+      return await rust_feed.discoverFeeds(url: url);
+    } finally {
+      _setWorking(false);
+    }
+  }
+
+  /// Subscribes to [url] via Rust (fetch + parse + normalize + persist). Reloads
+  /// the DB feed list and selects the new feed. Persists feed metadata only —
+  /// entry sync is P1b.
+  Future<void> subscribeFeed(String url) async {
+    _setWorking(true);
+    try {
+      final feed = await rust_feed.subscribeFeed(url: url);
+      await _loadDbFeeds();
+      _selectedFeedId = feed.id;
       _showStarredOnly = false;
       _showUnreadOnly = false;
-      _selectedArticleId = result.insertedArticles.isNotEmpty
-          ? result.insertedArticles.first.id
-          : null;
-      await _replaceSnapshot(result.snapshotJson);
+      _selectedArticleId = null;
+      _syncFromSnapshotJson();
+      notifyListeners();
     } finally {
       _setWorking(false);
     }
@@ -280,49 +305,19 @@ class ReaderController extends ChangeNotifier {
       throw const ReaderAppException('Add a feed before refreshing.');
     }
 
+    // P1a: feed sync/entry-fetch is deferred to P1b. Reload the persisted feed
+    // list so metadata changes made elsewhere are reflected, and return a
+    // zero-insert summary. The pull-to-refresh / refresh button stay wired so
+    // the UI does not need a separate disabled state during the transition.
     _setWorking(true);
-    var workingSnapshotJson = _snapshotJson;
-    var refreshedFeeds = 0;
-    var insertedArticles = 0;
-    var failedFeeds = 0;
-
     try {
-      final targetFeeds = _selectedFeedId == null
-          ? List<Feed>.from(feeds)
-          : feeds.where((feed) => feed.id == _selectedFeedId).toList();
-
-      for (final feed in targetFeeds) {
-        try {
-          final result = await _repository.importFeed(
-            snapshotJson: workingSnapshotJson,
-            feedUrl: feed.sourceUrl,
-          );
-          workingSnapshotJson = result.snapshotJson;
-          refreshedFeeds += 1;
-          insertedArticles += result.insertedArticles.length;
-          await _repository.saveSnapshotJson(workingSnapshotJson);
-        } catch (error) {
-          failedFeeds += 1;
-          final errorMessage = error is ReaderAppException
-              ? error.message
-              : error.toString();
-          workingSnapshotJson = recordFeedError(
-            snapshotJson: workingSnapshotJson,
-            feedId: feed.id,
-            errorMessage: errorMessage,
-          );
-          await _repository.saveSnapshotJson(workingSnapshotJson);
-        }
-      }
-
-      _snapshotJson = workingSnapshotJson;
+      await _loadDbFeeds();
       _syncFromSnapshotJson();
       notifyListeners();
-
       return RefreshSummary(
-        refreshedFeeds: refreshedFeeds,
-        insertedArticles: insertedArticles,
-        failedFeeds: failedFeeds,
+        refreshedFeeds: feeds.length,
+        insertedArticles: 0,
+        failedFeeds: 0,
       );
     } finally {
       _setWorking(false);
@@ -337,15 +332,14 @@ class ReaderController extends ChangeNotifier {
 
     _setWorking(true);
     try {
-      final nextSnapshotJson = removeFeed(
-        snapshotJson: _snapshotJson,
-        feedId: feedId,
-      );
+      await rust_feed.deleteFeed(feedId: feedId);
       _selectedFeedId = null;
       _showStarredOnly = false;
       _showUnreadOnly = false;
       _selectedArticleId = null;
-      await _replaceSnapshot(nextSnapshotJson);
+      await _loadDbFeeds();
+      _syncFromSnapshotJson();
+      notifyListeners();
     } finally {
       _setWorking(false);
     }
@@ -354,12 +348,9 @@ class ReaderController extends ChangeNotifier {
   Future<void> updateFeedViewMode(String feedId, ArticleViewMode mode) async {
     _setWorking(true);
     try {
-      final nextSnapshotJson = setFeedViewMode(
-        snapshotJson: _snapshotJson,
-        feedId: feedId,
-        viewMode: mode,
-      );
-      await _replaceSnapshot(nextSnapshotJson);
+      await rust_feed.setFeedViewMode(feedId: feedId, viewMode: mode);
+      await _loadDbFeeds();
+      notifyListeners();
     } finally {
       _setWorking(false);
     }

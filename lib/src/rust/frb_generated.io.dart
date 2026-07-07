@@ -81,6 +81,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Feed dco_decode_feed(dynamic raw);
 
   @protected
+  FeedCandidate dco_decode_feed_candidate(dynamic raw);
+
+  @protected
   FeedDraft dco_decode_feed_draft(dynamic raw);
 
   @protected
@@ -109,6 +112,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Feed> dco_decode_list_feed(dynamic raw);
+
+  @protected
+  List<FeedCandidate> dco_decode_list_feed_candidate(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -201,6 +207,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Feed sse_decode_feed(SseDeserializer deserializer);
 
   @protected
+  FeedCandidate sse_decode_feed_candidate(SseDeserializer deserializer);
+
+  @protected
   FeedDraft sse_decode_feed_draft(SseDeserializer deserializer);
 
   @protected
@@ -233,6 +242,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Feed> sse_decode_list_feed(SseDeserializer deserializer);
+
+  @protected
+  List<FeedCandidate> sse_decode_list_feed_candidate(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -337,6 +351,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_feed(Feed self, SseSerializer serializer);
 
   @protected
+  void sse_encode_feed_candidate(FeedCandidate self, SseSerializer serializer);
+
+  @protected
   void sse_encode_feed_draft(FeedDraft self, SseSerializer serializer);
 
   @protected
@@ -377,6 +394,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_feed(List<Feed> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_feed_candidate(
+    List<FeedCandidate> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
