@@ -23,3 +23,10 @@ Future<void> initDatabase({required String path}) =>
 /// Returns the Rust crate version. Also serves as the codegen smoke-test that
 /// ensures `AppError` is generated as a throwable Dart enum.
 String appVersion() => RustLib.instance.api.crateApiAppAppVersion();
+
+/// StreamSink smoke test (P1b). The first function in the crate to use FRB
+/// streaming — verifies the `SseCodec` `StreamSink<T>` path end-to-end before
+/// the feed-sync stream is built on top of it. Emits three `ping N` strings
+/// then closes. Dart side receives a `Stream<String>`. Kept as a tiny
+/// diagnostic helper; safe to remove once streaming is proven in production.
+Stream<String> pingStream() => RustLib.instance.api.crateApiAppPingStream();

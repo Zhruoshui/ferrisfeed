@@ -1,6 +1,7 @@
 //! App-level FRB functions: initialization, version, and demo helpers.
 
 use crate::api::error::AppError;
+use crate::frb_generated::StreamSink;
 
 /// Demo sync function (kept from the original `simple.rs` scaffold).
 #[flutter_rust_bridge::frb(sync)]
@@ -36,4 +37,16 @@ pub fn init_database(path: String) -> Result<(), AppError> {
 #[flutter_rust_bridge::frb(sync)]
 pub fn app_version() -> Result<String, AppError> {
     Ok(env!("CARGO_PKG_VERSION").to_owned())
+}
+
+/// StreamSink smoke test (P1b). The first function in the crate to use FRB
+/// streaming — verifies the `SseCodec` `StreamSink<T>` path end-to-end before
+/// the feed-sync stream is built on top of it. Emits three `ping N` strings
+/// then closes. Dart side receives a `Stream<String>`. Kept as a tiny
+/// diagnostic helper; safe to remove once streaming is proven in production.
+#[flutter_rust_bridge::frb]
+pub fn ping_stream(sink: StreamSink<String>) {
+    for i in 0..3 {
+        let _ = sink.add(format!("ping {i}"));
+    }
 }

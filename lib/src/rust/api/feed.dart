@@ -58,3 +58,21 @@ Future<List<FeedCandidate>> discoverFeeds({required String url}) =>
 /// existing subscription with the same source URL returns its record.
 Future<Feed> subscribeFeed({required String url}) =>
     RustLib.instance.api.crateApiFeedSubscribeFeed(url: url);
+
+/// Syncs the given feeds: fetch + parse + idempotent upsert + simhash near-dup
+/// dedup per feed, emitting a `SyncProgress` event per feed plus a final
+/// summary event. Per-feed failures are isolated (recorded on the feed row and
+/// reported in the event's `error` field) and never abort the whole run.
+Stream<SyncProgress> syncFeeds({required List<String> feedIds}) =>
+    RustLib.instance.api.crateApiFeedSyncFeeds(feedIds: feedIds);
+
+/// Syncs every subscribed feed. Convenience wrapper around [`sync_feeds`] that
+/// loads all feed ids from the database first.
+Stream<SyncProgress> refreshAllFeeds() =>
+    RustLib.instance.api.crateApiFeedRefreshAllFeeds();
+
+/// Refreshes a single feed (no progress stream). Returns the per-feed tally as
+/// a `SyncReport`. Unlike the streaming variants, a network/parse failure here
+/// surfaces as `Err` (there is only one feed, so isolation does not apply).
+Future<SyncReport> refreshFeed({required String feedId}) =>
+    RustLib.instance.api.crateApiFeedRefreshFeed(feedId: feedId);

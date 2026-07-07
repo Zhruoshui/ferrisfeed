@@ -12,6 +12,7 @@
 //! Parse failures map to [`AppError::FeedParse`].
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use url::Url;
 
 use crate::api::AppError;
@@ -32,6 +33,10 @@ pub(crate) struct ParsedFeed {
 pub(crate) struct ParsedEntry {
     pub title: String,
     pub url: String,
+    /// The feed entry's stable id (`<guid>` for RSS, `<id>` for Atom, JSON Feed
+    /// `id`). Used as the idempotent upsert key (falling back to `url` when
+    /// empty). Carried through to the `entries.guid` column by P1b sync.
+    pub guid: Option<String>,
     pub author: Option<String>,
     pub summary: Option<String>,
     pub content: Option<String>,
@@ -40,7 +45,7 @@ pub(crate) struct ParsedEntry {
 }
 
 #[allow(dead_code)] // consumed by P1b entry sync
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct MediaItem {
     pub url: String,
     pub mime_type: Option<String>,
@@ -103,6 +108,18 @@ fn map_entry(e: feed_rs::model::Entry, base_url: &str) -> ParsedEntry {
         .map(|l| resolve_url(&l.href, base_url))
         .unwrap_or_default();
 
+    // The entry id is the feed's stable identifier for the item (RSS <guid>,
+    // Atom <id>, JSON Feed id). Trimmed; empty values become `None` so the
+    // sync upsert falls back to the URL as the dedup key.
+    let guid = {
+        let trimmed = e.id.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    };
+
     let author = e.authors.first().map(|p| p.name.clone());
 
     // content:encoded -> content; summary falls back to content, content to summary.
@@ -118,6 +135,7 @@ fn map_entry(e: feed_rs::model::Entry, base_url: &str) -> ParsedEntry {
     ParsedEntry {
         title,
         url,
+        guid,
         author,
         summary,
         content,

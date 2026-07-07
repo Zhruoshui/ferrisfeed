@@ -127,6 +127,10 @@ class _ReaderHomeState extends State<ReaderHome> {
                 ],
               ),
             ],
+            // P1b: per-feed sync progress bar while a refresh is running.
+            bottom: controller.syncProgress != null
+                ? _SyncProgressBar(progress: controller.syncProgress!)
+                : null,
           ),
           floatingActionButton: _shouldShowFab(context)
               ? FloatingActionButton(
@@ -1436,6 +1440,67 @@ class _CountPill extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text('$count', style: Theme.of(context).textTheme.labelLarge),
+    );
+  }
+}
+
+/// A thin progress bar + status line shown in the `AppBar.bottom` while a feed
+/// sync is running. Reflects the per-feed `SyncProgress` stream: a determinate
+/// bar (completed/total) plus a one-line status ("Syncing 3/10 — 5 new").
+class _SyncProgressBar extends StatelessWidget implements PreferredSizeWidget {
+  const _SyncProgressBar({required this.progress});
+
+  final SyncProgress progress;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(26);
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction =
+        progress.total > 0 ? progress.completed / progress.total : 0.0;
+    final theme = Theme.of(context);
+    final hasError = progress.error != null;
+    final status = progress.done
+        ? 'Synced ${progress.completed}/${progress.total} '
+            'feeds, ${progress.totalNewEntries} new'
+            '${progress.failed > 0 ? ', ${progress.failed} failed' : ''}'
+        : (hasError
+              ? 'Failed: ${progress.feedTitle ?? progress.feedId ?? ''}'
+              : 'Syncing ${progress.completed}/${progress.total}'
+                  '${progress.feedTitle != null ? ' — ${progress.feedTitle}' : ''}'
+                  '${progress.totalNewEntries > 0 ? ' — ${progress.totalNewEntries} new' : ''}');
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(
+          value: progress.done ? 1.0 : (progress.total > 0 ? fraction : null),
+          minHeight: 3,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                hasError ? Icons.error_outline : Icons.sync,
+                size: 14,
+                color: hasError
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  status,
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

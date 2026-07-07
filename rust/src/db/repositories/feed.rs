@@ -79,6 +79,14 @@ pub fn list_feeds(conn: &Connection) -> Result<Vec<Feed>, AppError> {
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// Returns just the feed ids, ordered by title. Used by `refresh_all_feeds`
+/// to drive a sync over every subscribed feed without loading full rows.
+pub fn list_feed_ids(conn: &Connection) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn.prepare("SELECT id FROM feeds ORDER BY title COLLATE NOCASE")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
 pub fn delete_feed(conn: &Connection, id: &str) -> Result<(), AppError> {
     // FK ON DELETE CASCADE removes the feed's entries.
     conn.execute("DELETE FROM feeds WHERE id = ?1", params![id])?;
@@ -107,6 +115,32 @@ pub fn recompute_feed_counts(conn: &Connection, feed_id: &str) -> Result<(), App
              unread_count = (SELECT COUNT(*) FROM entries WHERE feed_id = ?1 AND is_read = 0)
          WHERE id = ?1",
         params![feed_id],
+    )?;
+    Ok(())
+}
+
+/// Records a successful sync: stamps `last_synced_at`, clears `last_error`,
+/// and resets `error_count` (mirrors Livo clearing the error state on success).
+pub fn record_sync_success(conn: &Connection, feed_id: &str) -> Result<(), AppError> {
+    conn.execute(
+        "UPDATE feeds SET last_synced_at = ?1, last_error = NULL, error_count = 0
+         WHERE id = ?2",
+        params![Utc::now().timestamp_millis(), feed_id],
+    )?;
+    Ok(())
+}
+
+/// Records a failed sync: stamps `last_synced_at`, stores the error message in
+/// `last_error`, and increments `error_count`.
+pub fn record_sync_error(
+    conn: &Connection,
+    feed_id: &str,
+    message: &str,
+) -> Result<(), AppError> {
+    conn.execute(
+        "UPDATE feeds SET last_synced_at = ?1, last_error = ?2, error_count = error_count + 1
+         WHERE id = ?3",
+        params![Utc::now().timestamp_millis(), message, feed_id],
     )?;
     Ok(())
 }

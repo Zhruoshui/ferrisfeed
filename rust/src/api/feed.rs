@@ -13,9 +13,10 @@
 
 use crate::api::error::AppError;
 use crate::api::reader::{ArticleViewMode, Feed};
-use crate::api::types::FeedCandidate;
+use crate::api::types::{FeedCandidate, SyncProgress, SyncReport};
 use crate::db::connection::with_db;
 use crate::db::repositories;
+use crate::frb_generated::StreamSink;
 
 /// Returns every feed, ordered by title.
 #[flutter_rust_bridge::frb]
@@ -103,4 +104,49 @@ pub async fn subscribe_feed(url: String) -> Result<Feed, AppError> {
         .spawn(async move { crate::feed::subscribe_feed_impl(&url).await })
         .await
         .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+// --- P1b: feed sync & refresh with progress streaming ----------------------
+//
+// These async fns await the sync orchestrator DIRECTLY (not via
+// `feed::runtime::handle().spawn`). FRB v2.12's `DefaultHandler` already hosts
+// a multi-threaded tokio runtime with an I/O driver + timer, so `reqwest`
+// awaits work inside these `async fn`s without a second runtime (see
+// `directory-structure.md` gotcha). The `StreamSink<SyncProgress>` parameter
+// maps to a Dart `Stream<SyncProgress>`; because FRB stream-sink functions can
+// only return `()` / `Result<(), E>`, the cumulative sync totals ride on the
+// final `SyncProgress` event (`done = true`) rather than a `SyncReport` return.
+
+/// Syncs the given feeds: fetch + parse + idempotent upsert + simhash near-dup
+/// dedup per feed, emitting a `SyncProgress` event per feed plus a final
+/// summary event. Per-feed failures are isolated (recorded on the feed row and
+/// reported in the event's `error` field) and never abort the whole run.
+#[flutter_rust_bridge::frb]
+pub async fn sync_feeds(
+    sink: StreamSink<SyncProgress>,
+    feed_ids: Vec<String>,
+) -> Result<(), AppError> {
+    crate::feed::sync::sync_feeds_impl(sink, feed_ids).await
+}
+
+/// Syncs every subscribed feed. Convenience wrapper around [`sync_feeds`] that
+/// loads all feed ids from the database first.
+#[flutter_rust_bridge::frb]
+pub async fn refresh_all_feeds(sink: StreamSink<SyncProgress>) -> Result<(), AppError> {
+    let feed_ids = with_db(|conn| repositories::feed::list_feed_ids(conn))?;
+    crate::feed::sync::sync_feeds_impl(sink, feed_ids).await
+}
+
+/// Refreshes a single feed (no progress stream). Returns the per-feed tally as
+/// a `SyncReport`. Unlike the streaming variants, a network/parse failure here
+/// surfaces as `Err` (there is only one feed, so isolation does not apply).
+#[flutter_rust_bridge::frb]
+pub async fn refresh_feed(feed_id: String) -> Result<SyncReport, AppError> {
+    let new_entries = crate::feed::sync::refresh_feed_impl(feed_id).await?;
+    Ok(SyncReport {
+        total: 1,
+        completed: 1,
+        failed: 0,
+        new_entries,
+    })
 }

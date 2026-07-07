@@ -38,6 +38,11 @@ class ReaderController extends ChangeNotifier {
   bool _isWorking = false;
   bool _isLoaded = false;
 
+  /// Current feed-sync progress (`null` when not syncing). Updated from the
+  /// `StreamSink<SyncProgress>` events emitted by `refreshAllFeeds` so the UI
+  /// can show per-feed progress (total/completed/new) during a refresh.
+  SyncProgress? _syncProgress;
+
   /// Feeds shown in the sidebar — DB-backed via `listFeeds()` (P1a). Article
   /// reading still uses the in-memory snapshot until P2a, so a newly subscribed
   /// feed's ID will not match any snapshot articles (no entries are synced
@@ -117,6 +122,10 @@ class ReaderController extends ChangeNotifier {
     }
     return effectiveViewModeForFeed(article.feedId);
   }
+
+  /// Current sync progress, or `null` when no refresh is running. The UI binds
+  /// to this to render a progress bar + per-feed status.
+  SyncProgress? get syncProgress => _syncProgress;
 
   ReaderSnapshot get snapshot => _snapshot;
   List<Feed> get feeds => _dbFeeds;
@@ -305,21 +314,37 @@ class ReaderController extends ChangeNotifier {
       throw const ReaderAppException('Add a feed before refreshing.');
     }
 
-    // P1a: feed sync/entry-fetch is deferred to P1b. Reload the persisted feed
-    // list so metadata changes made elsewhere are reflected, and return a
-    // zero-insert summary. The pull-to-refresh / refresh button stay wired so
-    // the UI does not need a separate disabled state during the transition.
+    // P1b: real feed sync. `refreshAllFeeds` returns a `Stream<SyncProgress>`
+    // (one event per feed + a final summary event with `done = true`). The
+    // stream is consumed with `await for`; per-feed progress updates the UI via
+    // `notifyListeners`. Per-feed failures are isolated in Rust (recorded on the
+    // feed row + reported in the event's `error` field), so the stream always
+    // completes — only a catastrophic setup error (e.g. DB not initialized)
+    // throws, which `_runGuardedResult` surfaces.
     _setWorking(true);
+    var completed = 0;
+    var failed = 0;
+    var totalNew = 0;
     try {
+      final stream = rust_feed.refreshAllFeeds();
+      await for (final progress in stream) {
+        completed = progress.completed;
+        failed = progress.failed;
+        totalNew = progress.totalNewEntries;
+        _syncProgress = progress;
+        notifyListeners();
+      }
+      // Reload the DB feed list so unread/article counts reflect the new entries.
       await _loadDbFeeds();
       _syncFromSnapshotJson();
       notifyListeners();
       return RefreshSummary(
-        refreshedFeeds: feeds.length,
-        insertedArticles: 0,
-        failedFeeds: 0,
+        refreshedFeeds: completed,
+        insertedArticles: totalNew,
+        failedFeeds: failed,
       );
     } finally {
+      _syncProgress = null;
       _setWorking(false);
     }
   }

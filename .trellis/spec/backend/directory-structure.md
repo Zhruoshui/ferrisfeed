@@ -140,3 +140,14 @@ Run `./scripts/frb.sh` (or `flutter_rust_bridge_codegen generate`) after **every
 > `handle().spawn(...).await`. (P1a's `feed/runtime.rs` does this redundantly;
 > it works but spawns a wasteful second 2-thread runtime — a future cleanup
 > should await `*_impl` directly and delete `feed/runtime.rs`.)
+
+> **Gotcha — FRB stream-sink fns can only return `()` / `Result<(), E>`.** A
+> function with a `StreamSink<T>` parameter can only usefully return unit — a
+> non-unit `Ok` value is **discarded** by FRB v2.12 (only `Err` propagates as a
+> stream error; `Ok(())` completes the stream). So for a streaming operation
+> that also produces a cumulative result, return `Result<(), AppError>` and
+> carry the totals on the **final stream event** (e.g. `SyncProgress { done:
+> true, total_new_entries: ... }`). For a non-streaming variant, return
+> `Result<T, AppError>` directly (no `StreamSink` param). Verified in P1b:
+> `syncFeeds`/`refreshAllFeeds` → `Stream<SyncProgress>` (final event carries
+> totals); `refreshFeed` → `Future<SyncReport>`.

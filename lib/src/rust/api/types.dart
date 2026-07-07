@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// A simple category/folder grouping.
 class Category {
@@ -219,29 +219,67 @@ class FeedCandidate {
 /// Progress payload pushed via `StreamSink` during a feed refresh.
 ///
 /// Mirrors Livo's `FeedRefreshProgressPayload`
-/// (`src/shared/renderer-events.ts`).
+/// (`src/shared/renderer-events.ts`). One event is emitted per feed after it
+/// has been fetched + upserted (success or failure), followed by a final
+/// summary event with `done = true` and `feed_id = None`.
+///
+/// **FRB constraint**: a function with a `StreamSink<T>` parameter can only
+/// return `()` or `Result<(), E>` — the return value is not delivered to Dart
+/// as a value (only errors surface, as a stream/Future error). The cumulative
+/// sync totals therefore ride on the final `SyncProgress` event (`done = true`)
+/// rather than a separate `SyncReport` return value. `refresh_feed` (no stream)
+/// does return a `SyncReport` directly.
 class SyncProgress {
+  /// Total feeds in this sync run.
   final int total;
+
+  /// Feeds processed so far (success + failure).
   final int completed;
+
+  /// Feeds that failed so far.
+  final int failed;
+
+  /// The feed just processed (`None` on the final summary event).
   final String? feedId;
+
+  /// Human-readable title of the feed just processed (`None` on the summary).
+  final String? feedTitle;
+
+  /// New entries inserted for THIS feed (0 on the summary event).
   final int newEntries;
+
+  /// Cumulative new entries across all feeds so far.
+  final int totalNewEntries;
+
+  /// `true` on the final summary event.
   final bool done;
+
+  /// Per-feed error message when this feed failed (`None` on success/summary).
+  final String? error;
 
   const SyncProgress({
     required this.total,
     required this.completed,
+    required this.failed,
     this.feedId,
+    this.feedTitle,
     required this.newEntries,
+    required this.totalNewEntries,
     required this.done,
+    this.error,
   });
 
   @override
   int get hashCode =>
       total.hashCode ^
       completed.hashCode ^
+      failed.hashCode ^
       feedId.hashCode ^
+      feedTitle.hashCode ^
       newEntries.hashCode ^
-      done.hashCode;
+      totalNewEntries.hashCode ^
+      done.hashCode ^
+      error.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -250,7 +288,45 @@ class SyncProgress {
           runtimeType == other.runtimeType &&
           total == other.total &&
           completed == other.completed &&
+          failed == other.failed &&
           feedId == other.feedId &&
+          feedTitle == other.feedTitle &&
           newEntries == other.newEntries &&
-          done == other.done;
+          totalNewEntries == other.totalNewEntries &&
+          done == other.done &&
+          error == other.error;
+}
+
+/// Final tally of a sync run. Returned directly by the non-streaming
+/// `refresh_feed`; for the streaming `sync_feeds`/`refresh_all_feeds` the same
+/// data is carried by the final `SyncProgress` event (see its docs for why).
+class SyncReport {
+  final int total;
+  final int completed;
+  final int failed;
+  final int newEntries;
+
+  const SyncReport({
+    required this.total,
+    required this.completed,
+    required this.failed,
+    required this.newEntries,
+  });
+
+  @override
+  int get hashCode =>
+      total.hashCode ^
+      completed.hashCode ^
+      failed.hashCode ^
+      newEntries.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncReport &&
+          runtimeType == other.runtimeType &&
+          total == other.total &&
+          completed == other.completed &&
+          failed == other.failed &&
+          newEntries == other.newEntries;
 }

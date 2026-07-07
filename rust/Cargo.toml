@@ -37,6 +37,13 @@ reqwest = { version = "0.13", features = ["gzip", "brotli"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # scraper (html5ever + selectors) for feed auto-discovery via <link rel=alternate>.
 scraper = "0.22"
+# P1b: simhash near-duplicate detection (ports Livo entry-simhash.ts). SHA-1 per
+# token, 64-bit fingerprint, Hamming distance <= 9. `regex` is already a
+# transitive dep of feed-rs; declaring it directly keeps the simhash tokenizer
+# self-contained. `unicode-normalization` provides NFKC folding for parity.
+sha1 = "0.10"
+regex = "1"
+unicode-normalization = "0.1"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

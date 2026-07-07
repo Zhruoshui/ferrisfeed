@@ -16,6 +16,8 @@ pub(crate) mod fetch;
 pub(crate) mod normalize;
 pub(crate) mod parse;
 pub(crate) mod runtime;
+pub(crate) mod simhash;
+pub(crate) mod sync;
 
 use chrono::Utc;
 use uuid::Uuid;

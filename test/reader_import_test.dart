@@ -293,6 +293,41 @@ class _MockRustApi implements RustLibApi {
     );
   }
 
+  /// P1b: `refreshAllFeeds` returns a `Stream<SyncProgress>`. The mock emits one
+  /// final summary event (`done = true`) per subscribed feed so the controller's
+  /// `await for` loop completes with a non-zero `refreshedFeeds` count. No real
+  /// network/parse/upsert happens — this only exercises the controller wiring.
+  @override
+  Stream<SyncProgress> crateApiFeedRefreshAllFeeds() async* {
+    final total = _dbFeeds.length;
+    var completed = 0;
+    for (final feed in _dbFeeds) {
+      completed += 1;
+      yield SyncProgress(
+        total: total,
+        completed: completed,
+        failed: 0,
+        feedId: feed.id,
+        feedTitle: feed.title,
+        newEntries: 0,
+        totalNewEntries: 0,
+        done: false,
+        error: null,
+      );
+    }
+    yield SyncProgress(
+      total: total,
+      completed: completed,
+      failed: 0,
+      feedId: null,
+      feedTitle: null,
+      newEntries: 0,
+      totalNewEntries: 0,
+      done: true,
+      error: null,
+    );
+  }
+
   // --- Legacy snapshot API (entry reading UI, unchanged until P2a) ----------
 
   @override

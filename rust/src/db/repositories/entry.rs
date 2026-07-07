@@ -149,6 +149,89 @@ pub fn mark_all_read(conn: &Connection, feed_id: Option<&str>) -> Result<(), App
     Ok(())
 }
 
+// --- P1b: sync upsert (guid idempotency + media) ---------------------------
+
+/// Content needed to compute a simhash fingerprint for an existing entry.
+/// Loaded by [`list_entries_for_dedup`] so the sync dedup logic (in `feed/`)
+/// can near-duplicate-check new drafts against what is already stored.
+pub struct EntryDedupData {
+    pub id: String,
+    pub title: String,
+    pub url: String,
+    pub guid: Option<String>,
+    pub summary: Option<String>,
+    pub content: Option<String>,
+}
+
+/// Loads the dedup-relevant fields for every entry in a feed (newest-first is
+/// not required; the simhash check scans all of them). Used by the sync path
+/// to (a) guard idempotent upsert by guid/url and (b) compute near-dup
+/// fingerprints for the incoming drafts.
+pub fn list_entries_for_dedup(
+    conn: &Connection,
+    feed_id: &str,
+) -> Result<Vec<EntryDedupData>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, url, guid, summary, content
+         FROM entries WHERE feed_id = ?1",
+    )?;
+    let rows = stmt.query_map(params![feed_id], |row| {
+        Ok(EntryDedupData {
+            id: row.get("id")?,
+            title: row.get::<_, Option<String>>("title")?.unwrap_or_default(),
+            url: row.get::<_, Option<String>>("url")?.unwrap_or_default(),
+            guid: row.get("guid")?,
+            summary: row.get("summary")?,
+            content: row.get("content")?,
+        })
+    })?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The fields required to insert one synced entry, including the `guid` and
+/// `media` columns that P0b left NULL. Lives in the `db` layer (with borrowed
+/// fields) so the repository does not depend on `feed/`.
+pub struct SyncedEntryRecord<'a> {
+    pub id: &'a str,
+    pub feed_id: &'a str,
+    pub title: &'a str,
+    pub url: &'a str,
+    pub author: Option<&'a str>,
+    pub summary: Option<&'a str>,
+    pub content: Option<&'a str>,
+    pub published_ms: i64,
+    pub guid: Option<&'a str>,
+    pub media_json: Option<&'a str>,
+}
+
+/// Inserts a single synced entry with the `guid` and `media` columns populated.
+/// The caller is responsible for idempotency / near-dup checks before calling;
+/// this performs a plain INSERT. Callers should recompute feed counts after a
+/// batch of inserts.
+pub fn insert_synced_entry(conn: &Connection, rec: &SyncedEntryRecord) -> Result<(), AppError> {
+    let now_ms = Utc::now().timestamp_millis();
+    conn.execute(
+        "INSERT INTO entries
+            (id, feed_id, title, url, author, summary, content,
+             published_at, is_read, is_starred, guid, media, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, 0, ?9, ?10, ?11)",
+        params![
+            rec.id,
+            rec.feed_id,
+            rec.title,
+            rec.url,
+            rec.author,
+            rec.summary,
+            rec.content,
+            rec.published_ms,
+            rec.guid,
+            rec.media_json,
+            now_ms,
+        ],
+    )?;
+    Ok(())
+}
+
 // --- row mappers -----------------------------------------------------------
 
 fn entry_from_row(row: &Row) -> Result<Entry, rusqlite::Error> {
