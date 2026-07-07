@@ -529,10 +529,13 @@ class _MockRustApi implements RustLibApi {
   }
 
   @override
-  Future<void> crateApiSimpleInitApp() async {}
+  Future<void> crateApiAppInitApp() async {}
 
   @override
-  String crateApiSimpleGreet({required String name}) => 'Hello, $name!';
+  String crateApiAppGreet({required String name}) => 'Hello, $name!';
+
+  @override
+  String crateApiAppAppVersion() => '0.1.0';
 
   ArticleViewMode _viewModeFromName(String? name) {
     switch (name) {

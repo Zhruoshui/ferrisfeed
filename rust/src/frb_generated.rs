@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1560527801;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -919766935;
 
 // Section: executor
 
@@ -72,6 +72,35 @@ fn wire__crate__api__reader__add_feed_impl(
             deserializer.end();
             transform_result_sse::<_, crate::api::reader::ReaderError>((move || {
                 let output_ok = crate::api::reader::add_feed(api_snapshot_json, api_draft)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__app__app_version_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "app_version",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::AppError>((move || {
+                let output_ok = crate::api::app::app_version()?;
                 Ok(output_ok)
             })())
         },
@@ -231,7 +260,7 @@ fn wire__crate__api__reader__get_article_impl(
         },
     )
 }
-fn wire__crate__api__simple__greet_impl(
+fn wire__crate__api__app__greet_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
@@ -255,7 +284,7 @@ fn wire__crate__api__simple__greet_impl(
             let api_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
-                let output_ok = Result::<_, ()>::Ok(crate::api::simple::greet(api_name))?;
+                let output_ok = Result::<_, ()>::Ok(crate::api::app::greet(api_name))?;
                 Ok(output_ok)
             })())
         },
@@ -304,7 +333,7 @@ fn wire__crate__api__reader__import_feed_from_xml_impl(
         },
     )
 }
-fn wire__crate__api__simple__init_app_impl(
+fn wire__crate__api__app__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -330,7 +359,7 @@ fn wire__crate__api__simple__init_app_impl(
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::simple::init_app();
+                        crate::api::app::init_app();
                     })?;
                     Ok(output_ok)
                 })())
@@ -551,11 +580,81 @@ fn wire__crate__api__reader__toggle_article_star_impl(
 
 // Section: dart2rust
 
+impl SseDecode for chrono::DateTime<chrono::Utc> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i64>::sse_decode(deserializer);
+        return chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+            chrono::DateTime::from_timestamp_micros(inner)
+                .expect("invalid or out-of-range datetime")
+                .naive_utc(),
+            chrono::Utc,
+        );
+    }
+}
+
 impl SseDecode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u8>>::sse_decode(deserializer);
         return String::from_utf8(inner).unwrap();
+    }
+}
+
+impl SseDecode for crate::api::error::AppError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_resource = <String>::sse_decode(deserializer);
+                let mut var_id = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::NotFound {
+                    resource: var_resource,
+                    id: var_id,
+                };
+            }
+            1 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::InvalidInput(var_field0);
+            }
+            2 => {
+                let mut var_url = <String>::sse_decode(deserializer);
+                let mut var_status = <u16>::sse_decode(deserializer);
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::Network {
+                    url: var_url,
+                    status: var_status,
+                    message: var_message,
+                };
+            }
+            3 => {
+                let mut var_url = <String>::sse_decode(deserializer);
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::FeedParse {
+                    url: var_url,
+                    message: var_message,
+                };
+            }
+            4 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::Database(var_field0);
+            }
+            5 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::Io(var_field0);
+            }
+            6 => {
+                return crate::api::error::AppError::Unauthorized;
+            }
+            7 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::error::AppError::Conflict(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -632,6 +731,103 @@ impl SseDecode for bool {
     }
 }
 
+impl SseDecode for crate::api::types::Category {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
+        return crate::api::types::Category {
+            id: var_id,
+            title: var_title,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::Entry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_feedId = <String>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_url = <String>::sse_decode(deserializer);
+        let mut var_content = <Option<String>>::sse_decode(deserializer);
+        let mut var_summary = <Option<String>>::sse_decode(deserializer);
+        let mut var_author = <Option<String>>::sse_decode(deserializer);
+        let mut var_imageUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_publishedAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        let mut var_isRead = <bool>::sse_decode(deserializer);
+        let mut var_isStarred = <bool>::sse_decode(deserializer);
+        let mut var_readProgress = <Option<f64>>::sse_decode(deserializer);
+        let mut var_createdAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        return crate::api::types::Entry {
+            id: var_id,
+            feed_id: var_feedId,
+            title: var_title,
+            url: var_url,
+            content: var_content,
+            summary: var_summary,
+            author: var_author,
+            image_url: var_imageUrl,
+            published_at: var_publishedAt,
+            is_read: var_isRead,
+            is_starred: var_isStarred,
+            read_progress: var_readProgress,
+            created_at: var_createdAt,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::EntryDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_url = <String>::sse_decode(deserializer);
+        let mut var_author = <Option<String>>::sse_decode(deserializer);
+        let mut var_summary = <Option<String>>::sse_decode(deserializer);
+        let mut var_content = <Option<String>>::sse_decode(deserializer);
+        let mut var_publishedAt = <Option<chrono::DateTime<chrono::Utc>>>::sse_decode(deserializer);
+        return crate::api::types::EntryDraft {
+            title: var_title,
+            url: var_url,
+            author: var_author,
+            summary: var_summary,
+            content: var_content,
+            published_at: var_publishedAt,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::EntryListItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_feedId = <String>::sse_decode(deserializer);
+        let mut var_feedTitle = <String>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_summary = <String>::sse_decode(deserializer);
+        let mut var_publishedAt = <Option<chrono::DateTime<chrono::Utc>>>::sse_decode(deserializer);
+        let mut var_isRead = <bool>::sse_decode(deserializer);
+        let mut var_isStarred = <bool>::sse_decode(deserializer);
+        return crate::api::types::EntryListItem {
+            id: var_id,
+            feed_id: var_feedId,
+            feed_title: var_feedTitle,
+            title: var_title,
+            summary: var_summary,
+            published_at: var_publishedAt,
+            is_read: var_isRead,
+            is_starred: var_isStarred,
+        };
+    }
+}
+
+impl SseDecode for f64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_f64::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for crate::api::reader::Feed {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -683,6 +879,13 @@ impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_i32::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i64::<NativeEndian>().unwrap()
     }
 }
 
@@ -761,6 +964,28 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<chrono::DateTime<chrono::Utc>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<chrono::DateTime<chrono::Utc>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<f64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::api::reader::ReaderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -787,6 +1012,31 @@ impl SseDecode for crate::api::reader::ReaderSnapshot {
     }
 }
 
+impl SseDecode for crate::api::types::SyncProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_total = <i32>::sse_decode(deserializer);
+        let mut var_completed = <i32>::sse_decode(deserializer);
+        let mut var_feedId = <Option<String>>::sse_decode(deserializer);
+        let mut var_newEntries = <i32>::sse_decode(deserializer);
+        let mut var_done = <bool>::sse_decode(deserializer);
+        return crate::api::types::SyncProgress {
+            total: var_total,
+            completed: var_completed,
+            feed_id: var_feedId,
+            new_entries: var_newEntries,
+            done: var_done,
+        };
+    }
+}
+
+impl SseDecode for u16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u16::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -808,14 +1058,14 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => wire__crate__api__reader__article_view_mode_default_impl(
+        3 => wire__crate__api__reader__article_view_mode_default_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        8 => wire__crate__api__reader__import_feed_from_xml_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__reader__import_feed_from_xml_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__app__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -829,23 +1079,78 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__reader__add_feed_impl(ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__reader__clear_all_read_articles_impl(ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__reader__decode_reader_snapshot_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__reader__empty_reader_snapshot_json_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__reader__get_article_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__simple__greet_impl(ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__reader__list_articles_impl(ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__reader__mark_article_read_impl(ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__reader__record_feed_error_impl(ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__reader__remove_feed_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__reader__set_feed_view_mode_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__reader__toggle_article_star_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__app__app_version_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__reader__clear_all_read_articles_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__reader__decode_reader_snapshot_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__reader__empty_reader_snapshot_json_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__reader__get_article_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__app__greet_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__reader__list_articles_impl(ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__reader__mark_article_read_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__reader__record_feed_error_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__reader__remove_feed_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__reader__set_feed_view_mode_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__reader__toggle_article_star_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::error::AppError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::error::AppError::NotFound { resource, id } => [
+                0.into_dart(),
+                resource.into_into_dart().into_dart(),
+                id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::error::AppError::InvalidInput(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::error::AppError::Network {
+                url,
+                status,
+                message,
+            } => [
+                2.into_dart(),
+                url.into_into_dart().into_dart(),
+                status.into_into_dart().into_dart(),
+                message.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::error::AppError::FeedParse { url, message } => [
+                3.into_dart(),
+                url.into_into_dart().into_dart(),
+                message.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::error::AppError::Database(field0) => {
+                [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::error::AppError::Io(field0) => {
+                [5.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::error::AppError::Unauthorized => [6.into_dart()].into_dart(),
+            crate::api::error::AppError::Conflict(field0) => {
+                [7.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::error::AppError {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::error::AppError>
+    for crate::api::error::AppError
+{
+    fn into_into_dart(self) -> crate::api::error::AppError {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::reader::Article {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -919,6 +1224,100 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::reader::ArticleViewMode>
     for crate::api::reader::ArticleViewMode
 {
     fn into_into_dart(self) -> crate::api::reader::ArticleViewMode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::Category {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Category {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Category>
+    for crate::api::types::Category
+{
+    fn into_into_dart(self) -> crate::api::types::Category {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::Entry {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.feed_id.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
+            self.url.into_into_dart().into_dart(),
+            self.content.into_into_dart().into_dart(),
+            self.summary.into_into_dart().into_dart(),
+            self.author.into_into_dart().into_dart(),
+            self.image_url.into_into_dart().into_dart(),
+            self.published_at.into_into_dart().into_dart(),
+            self.is_read.into_into_dart().into_dart(),
+            self.is_starred.into_into_dart().into_dart(),
+            self.read_progress.into_into_dart().into_dart(),
+            self.created_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::Entry {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::Entry> for crate::api::types::Entry {
+    fn into_into_dart(self) -> crate::api::types::Entry {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::EntryDraft {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.title.into_into_dart().into_dart(),
+            self.url.into_into_dart().into_dart(),
+            self.author.into_into_dart().into_dart(),
+            self.summary.into_into_dart().into_dart(),
+            self.content.into_into_dart().into_dart(),
+            self.published_at.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::EntryDraft {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::EntryDraft>
+    for crate::api::types::EntryDraft
+{
+    fn into_into_dart(self) -> crate::api::types::EntryDraft {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::EntryListItem {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.feed_id.into_into_dart().into_dart(),
+            self.feed_title.into_into_dart().into_dart(),
+            self.title.into_into_dart().into_dart(),
+            self.summary.into_into_dart().into_dart(),
+            self.published_at.into_into_dart().into_dart(),
+            self.is_read.into_into_dart().into_dart(),
+            self.is_starred.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::EntryListItem
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::EntryListItem>
+    for crate::api::types::EntryListItem
+{
+    fn into_into_dart(self) -> crate::api::types::EntryListItem {
         self
     }
 }
@@ -1032,11 +1431,92 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::reader::ReaderSnapshot>
         self
     }
 }
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::SyncProgress {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.total.into_into_dart().into_dart(),
+            self.completed.into_into_dart().into_dart(),
+            self.feed_id.into_into_dart().into_dart(),
+            self.new_entries.into_into_dart().into_dart(),
+            self.done.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::SyncProgress
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::SyncProgress>
+    for crate::api::types::SyncProgress
+{
+    fn into_into_dart(self) -> crate::api::types::SyncProgress {
+        self
+    }
+}
+
+impl SseEncode for chrono::DateTime<chrono::Utc> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.timestamp_micros(), serializer);
+    }
+}
 
 impl SseEncode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<u8>>::sse_encode(self.into_bytes(), serializer);
+    }
+}
+
+impl SseEncode for crate::api::error::AppError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::error::AppError::NotFound { resource, id } => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(resource, serializer);
+                <String>::sse_encode(id, serializer);
+            }
+            crate::api::error::AppError::InvalidInput(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::error::AppError::Network {
+                url,
+                status,
+                message,
+            } => {
+                <i32>::sse_encode(2, serializer);
+                <String>::sse_encode(url, serializer);
+                <u16>::sse_encode(status, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            crate::api::error::AppError::FeedParse { url, message } => {
+                <i32>::sse_encode(3, serializer);
+                <String>::sse_encode(url, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            crate::api::error::AppError::Database(field0) => {
+                <i32>::sse_encode(4, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::error::AppError::Io(field0) => {
+                <i32>::sse_encode(5, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::error::AppError::Unauthorized => {
+                <i32>::sse_encode(6, serializer);
+            }
+            crate::api::error::AppError::Conflict(field0) => {
+                <i32>::sse_encode(7, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -1095,6 +1575,66 @@ impl SseEncode for bool {
     }
 }
 
+impl SseEncode for crate::api::types::Category {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.title, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::Entry {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.feed_id, serializer);
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.url, serializer);
+        <Option<String>>::sse_encode(self.content, serializer);
+        <Option<String>>::sse_encode(self.summary, serializer);
+        <Option<String>>::sse_encode(self.author, serializer);
+        <Option<String>>::sse_encode(self.image_url, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.published_at, serializer);
+        <bool>::sse_encode(self.is_read, serializer);
+        <bool>::sse_encode(self.is_starred, serializer);
+        <Option<f64>>::sse_encode(self.read_progress, serializer);
+        <chrono::DateTime<chrono::Utc>>::sse_encode(self.created_at, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::EntryDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.url, serializer);
+        <Option<String>>::sse_encode(self.author, serializer);
+        <Option<String>>::sse_encode(self.summary, serializer);
+        <Option<String>>::sse_encode(self.content, serializer);
+        <Option<chrono::DateTime<chrono::Utc>>>::sse_encode(self.published_at, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::EntryListItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.feed_id, serializer);
+        <String>::sse_encode(self.feed_title, serializer);
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.summary, serializer);
+        <Option<chrono::DateTime<chrono::Utc>>>::sse_encode(self.published_at, serializer);
+        <bool>::sse_encode(self.is_read, serializer);
+        <bool>::sse_encode(self.is_starred, serializer);
+    }
+}
+
+impl SseEncode for f64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_f64::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for crate::api::reader::Feed {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1126,6 +1666,13 @@ impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i64::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -1188,6 +1735,26 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<chrono::DateTime<chrono::Utc>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <chrono::DateTime<chrono::Utc>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <f64>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::reader::ReaderError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1202,6 +1769,24 @@ impl SseEncode for crate::api::reader::ReaderSnapshot {
         <Vec<crate::api::reader::Feed>>::sse_encode(self.feeds, serializer);
         <Vec<crate::api::reader::Article>>::sse_encode(self.articles, serializer);
         <Option<String>>::sse_encode(self.last_updated_at, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::SyncProgress {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.total, serializer);
+        <i32>::sse_encode(self.completed, serializer);
+        <Option<String>>::sse_encode(self.feed_id, serializer);
+        <i32>::sse_encode(self.new_entries, serializer);
+        <bool>::sse_encode(self.done, serializer);
+    }
+}
+
+impl SseEncode for u16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u16::<NativeEndian>(self).unwrap();
     }
 }
 

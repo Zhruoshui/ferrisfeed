@@ -2,65 +2,73 @@
 
 > Rust-side error contracts for flutter_rust_bridge APIs.
 
-## Scenario: Reader FRB error contract
+## Project-wide error model: `AppError`
 
 ### 1. Scope / Trigger
 
-- Trigger: Reader APIs are now consumed by Flutter through FRB and must return stable, displayable errors across the language boundary.
+- All FRB-facing Rust functions that can fail return `Result<T, AppError>`.
+- `AppError` lives in `rust/src/api/error.rs` and is re-exported from `rust/src/api/mod.rs`.
+- It replaces the legacy `ReaderError { code, message }` struct (still in `reader.rs` until P0b removes it).
 
-### 2. Signatures
+### 2. The `AppError` enum
 
-- `decode_reader_snapshot(snapshot_json: String) -> Result<ReaderSnapshot, ReaderError>`
-- `add_feed(...) -> Result<String, ReaderError>`
-- `remove_feed(...) -> Result<String, ReaderError>`
-- `mark_article_read(...) -> Result<String, ReaderError>`
-- `toggle_article_star(...) -> Result<String, ReaderError>`
-- `clear_all_read_articles(...) -> Result<String, ReaderError>`
-- `import_feed_from_xml(...) -> Result<ImportFeedResult, ReaderError>`
-- `set_feed_view_mode(snapshot_json: String, feed_id: String, mode: ArticleViewMode) -> Result<String, ReaderError>`
-- `record_feed_error(snapshot_json: String, feed_id: String, error_message: String) -> Result<String, ReaderError>`
+```rust
+pub enum AppError {
+    NotFound { resource: String, id: String },
+    InvalidInput(String),
+    Network { url: String, status: u16, message: String },
+    FeedParse { url: String, message: String },
+    Database(String),
+    Io(String),
+    Unauthorized,
+    Conflict(String),
+}
+```
 
-### 3. Contracts
+FRB generates this as a `@freezed sealed class` implementing `FrbException`, so Dart callers can `switch` over variants exhaustively (unlike the old `code` string).
 
-- FRB-facing errors use:
-  - `code: String`
-  - `message: String`
-- Current error codes:
-  - `invalid_input`
-  - `not_found`
-  - `parse_error`
-- The `message` must be user-readable enough for Flutter snackbars and dialogs.
-- The `code` must stay machine-stable for branching and regression tests.
+> **Gotcha — `freezed` deps required.** Because `AppError` is a field-carrying
+> enum, FRB generates it as `@freezed`. This requires `freezed_annotation` +
+> `freezed` + `build_runner` in `pubspec.yaml` (already present after P0a) —
+> see `directory-structure.md` → "FRB codegen gotchas". Any new field-carrying
+> enum has the same requirement.
+
+### 3. Conventions
+
+- **`anyhow` is internal only.** The service / DB layer may use `anyhow::Result` internally, but every error must be converted to `AppError` before crossing the FRB boundary.
+- **No `unwrap()` on user-controlled data.** URLs, JSON, IDs, etc. must be validated and converted to `AppError::InvalidInput` or the appropriate variant.
+- **Helper constructors** (`not_found`, `invalid_input`, `database`) are `pub(crate)` — they are Rust-side convenience only and must not be exposed to Dart.
+- `AppError` implements `std::fmt::Display` and `std::error::Error` for Rust-side logging.
 
 ### 4. Validation & Error Matrix
 
-- Empty or malformed URL -> `invalid_input`
-- Duplicate feed subscription -> `invalid_input`
-- Missing article or feed during mutation -> `not_found`
-- Unsupported XML shape or invalid snapshot JSON -> `parse_error`
-- `set_feed_view_mode` on an unknown `feed_id` -> `not_found`
-- `record_feed_error` on an unknown `feed_id` -> `not_found`
+| Condition | Variant |
+|-----------|---------|
+| Empty or malformed URL | `InvalidInput` |
+| Duplicate feed subscription | `Conflict` or `InvalidInput` |
+| Missing article / feed / category during mutation | `NotFound` |
+| Unsupported XML shape or invalid snapshot JSON | `FeedParse` |
+| HTTP failure (non-2xx, timeout, DNS) | `Network` |
+| SQLite / migration failure | `Database` |
+| Filesystem error | `Io` |
+| Auth required / token expired | `Unauthorized` |
 
-### 5. Good / Base / Bad Cases
-
-- Good: Reject malformed input at the Rust boundary and return a structured `ReaderError`
-- Base: Empty snapshot string decodes to an empty reader state instead of failing
-- Bad: Panic, unwrap user-controlled data, or return opaque internal errors that Flutter cannot classify
-
-### 6. Tests Required
-
-- Unit test parser acceptance for representative RSS / Atom payloads
-- Unit test deduplication and count recalculation after mutation
-- When adding a new error condition, assert both the `code` and the high-level behavior in tests
-
-### 7. Wrong vs Correct
+### 5. Wrong vs Correct
 
 #### Wrong
 
-- `unwrap()` on parsed snapshot or feed URLs from user input
-- Returning ad hoc strings without a stable `code`
+- `unwrap()` on parsed snapshot, feed URLs, or DB query results
+- Returning ad hoc strings or opaque internal errors
+- Letting `anyhow::Error` cross the FRB boundary
 
 #### Correct
 
-- Convert boundary failures into `ReaderError`
-- Keep parse and validation failures explicit so Flutter can surface them directly
+- Convert all boundary failures into `AppError`
+- Use `?` with `From` impls (added in P0b for io/serde/DB errors) to propagate naturally
+- Keep validation failures explicit so Flutter can surface them in snackbars / dialogs
+
+---
+
+## Legacy: `ReaderError` (deprecated — removed in P0b)
+
+The throwaway JSON-snapshot functions in `rust/src/api/reader.rs` still use `ReaderError { code, message }`. Error codes: `invalid_input`, `not_found`, `parse_error`. These are superseded by `AppError` and will be removed when P0b replaces the snapshot model with SQLite persistence.

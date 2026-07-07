@@ -3,8 +3,10 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/app.dart';
+import 'api/error.dart';
 import 'api/reader.dart';
-import 'api/simple.dart';
+import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -20,7 +22,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   @protected
+  DateTime dco_decode_Chrono_Utc(dynamic raw);
+
+  @protected
   String dco_decode_String(dynamic raw);
+
+  @protected
+  AppError dco_decode_app_error(dynamic raw);
 
   @protected
   Article dco_decode_article(dynamic raw);
@@ -35,7 +43,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
   FeedDraft dco_decode_box_autoadd_feed_draft(dynamic raw);
+
+  @protected
+  Category dco_decode_category(dynamic raw);
+
+  @protected
+  Entry dco_decode_entry(dynamic raw);
+
+  @protected
+  EntryDraft dco_decode_entry_draft(dynamic raw);
+
+  @protected
+  EntryListItem dco_decode_entry_list_item(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
 
   @protected
   Feed dco_decode_feed(dynamic raw);
@@ -45,6 +74,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   ImportFeedResult dco_decode_import_feed_result(dynamic raw);
@@ -65,10 +97,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
   ReaderError dco_decode_reader_error(dynamic raw);
 
   @protected
   ReaderSnapshot dco_decode_reader_snapshot(dynamic raw);
+
+  @protected
+  SyncProgress dco_decode_sync_progress(dynamic raw);
+
+  @protected
+  int dco_decode_u_16(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -77,7 +121,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  AppError sse_decode_app_error(SseDeserializer deserializer);
 
   @protected
   Article sse_decode_article(SseDeserializer deserializer);
@@ -92,7 +142,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   FeedDraft sse_decode_box_autoadd_feed_draft(SseDeserializer deserializer);
+
+  @protected
+  Category sse_decode_category(SseDeserializer deserializer);
+
+  @protected
+  Entry sse_decode_entry(SseDeserializer deserializer);
+
+  @protected
+  EntryDraft sse_decode_entry_draft(SseDeserializer deserializer);
+
+  @protected
+  EntryListItem sse_decode_entry_list_item(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
   Feed sse_decode_feed(SseDeserializer deserializer);
@@ -102,6 +173,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   ImportFeedResult sse_decode_import_feed_result(SseDeserializer deserializer);
@@ -124,10 +198,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   ReaderError sse_decode_reader_error(SseDeserializer deserializer);
 
   @protected
   ReaderSnapshot sse_decode_reader_snapshot(SseDeserializer deserializer);
+
+  @protected
+  SyncProgress sse_decode_sync_progress(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -136,7 +222,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  void sse_encode_Chrono_Utc(DateTime self, SseSerializer serializer);
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_app_error(AppError self, SseSerializer serializer);
 
   @protected
   void sse_encode_article(Article self, SseSerializer serializer);
@@ -157,10 +249,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_Chrono_Utc(
+    DateTime self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_feed_draft(
     FeedDraft self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_category(Category self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_entry(Entry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_entry_draft(EntryDraft self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_entry_list_item(EntryListItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_feed(Feed self, SseSerializer serializer);
@@ -170,6 +286,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_import_feed_result(
@@ -199,6 +318,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_Chrono_Utc(
+    DateTime? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_reader_error(ReaderError self, SseSerializer serializer);
 
   @protected
@@ -206,6 +334,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ReaderSnapshot self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_sync_progress(SyncProgress self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

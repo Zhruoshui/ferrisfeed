@@ -1,3 +1,11 @@
+//! TODO(P0b): remove — replaced by the persisted model in `types.rs` + `db/`.
+//!
+//! This module contains the throwaway JSON-snapshot prototype. Every function
+//! is `#[frb(sync)]` and operates on a `snapshot_json: String` passed from
+//! Dart. P0b replaces it with SQLite-backed persistence and removes this file
+//! entirely. Until then it is kept compiling so the Flutter UI continues to
+//! work without rewrites.
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
