@@ -70,11 +70,24 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 "#;
 
+/// v2: adds the feed metadata columns the persisted `types::Feed` DTO carries
+/// but v1 did not create (`image_url`, `folder`, `category`, and the HTTP
+/// caching helpers `etag` / `last_modified`). All nullable, so existing rows
+/// are unaffected. Now that `reader.rs` is gone (P2a), `types::Feed` is the
+/// sole `Feed` DTO and its row mapper reads/writes these columns.
+const V2_FEED_METADATA: &str = r#"
+ALTER TABLE feeds ADD COLUMN image_url TEXT;
+ALTER TABLE feeds ADD COLUMN folder TEXT;
+ALTER TABLE feeds ADD COLUMN category TEXT;
+ALTER TABLE feeds ADD COLUMN etag TEXT;
+ALTER TABLE feeds ADD COLUMN last_modified TEXT;
+"#;
+
 /// Runs all pending migrations against `conn`, bringing it to the latest
 /// schema version. Safe to call on a fresh database and on an already-current
 /// one (idempotent).
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
-    let migrations = Migrations::new(vec![M::up(V1_INIT)]);
+    let migrations = Migrations::new(vec![M::up(V1_INIT), M::up(V2_FEED_METADATA)]);
     migrations
         .to_latest(conn)
         .map_err(|e| AppError::database(format!("migration failed: {e}")))?;

@@ -1,54 +1,61 @@
 //! Feed repository: CRUD for the `feeds` table.
 //!
-//! Uses the already-FRB-exposed `crate::api::reader::{Feed, ArticleViewMode}`
-//! types as the boundary DTO. While `reader.rs` (the JSON-snapshot prototype)
-//! still exists, `types::Feed` cannot be exposed without producing a duplicate
-//! Dart `Feed` class, so the persisted feed API reuses `reader::Feed`. P1a
-//! removes `reader.rs` and switches this to `types::Feed`.
-//!
-//! Dates are stored as epoch-millis `INTEGER`; `reader::Feed` carries
-//! `last_synced_at` as an RFC3339 `String`, so the repo converts at the
-//! boundary. `article_view_mode` is stored as lowercase `TEXT`.
+//! Uses the FRB-exposed `crate::api::types::{Feed, ArticleViewMode}` DTOs as
+//! the boundary types. Dates are stored as epoch-millis `INTEGER`;
+//! `last_synced_at` / `created_at` convert at the boundary.
+//! `article_view_mode` is stored as lowercase `TEXT`.
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Row};
 
-use crate::api::reader::{ArticleViewMode, Feed};
+use crate::api::types::{ArticleViewMode, Feed};
 use crate::api::AppError;
 
 /// Inserts or updates a feed by `id`. `created_at` is set on insert and
 /// preserved on update (the `ON CONFLICT` clause does not touch it).
 pub fn upsert_feed(conn: &Connection, feed: &Feed) -> Result<(), AppError> {
-    let last_synced_ms = feed.last_synced_at.as_deref().and_then(parse_iso_to_ms);
+    let last_synced_ms = feed.last_synced_at.map(|dt| dt.timestamp_millis());
     conn.execute(
         "INSERT INTO feeds
-            (id, title, source_url, site_url, description, unread_count,
-             article_count, last_synced_at, article_view_mode, last_error,
-             error_count, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            (id, title, source_url, site_url, description, image_url, folder,
+             category, unread_count, article_count, last_synced_at,
+             article_view_mode, last_error, error_count, etag, last_modified,
+             created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
+                 ?15, ?16, ?17)
          ON CONFLICT(id) DO UPDATE SET
              title = excluded.title,
              source_url = excluded.source_url,
              site_url = excluded.site_url,
              description = excluded.description,
+             image_url = excluded.image_url,
+             folder = excluded.folder,
+             category = excluded.category,
              unread_count = excluded.unread_count,
              article_count = excluded.article_count,
              last_synced_at = excluded.last_synced_at,
              article_view_mode = excluded.article_view_mode,
              last_error = excluded.last_error,
-             error_count = excluded.error_count",
+             error_count = excluded.error_count,
+             etag = excluded.etag,
+             last_modified = excluded.last_modified",
         params![
             feed.id,
             feed.title,
             feed.source_url,
             feed.site_url,
             feed.description,
+            feed.image_url,
+            feed.folder,
+            feed.category,
             feed.unread_count,
             feed.article_count,
             last_synced_ms,
             view_mode_str(&feed.article_view_mode),
             feed.last_error,
             feed.error_count,
+            feed.etag,
+            feed.last_modified,
             Utc::now().timestamp_millis(),
         ],
     )?;
@@ -149,22 +156,26 @@ pub fn record_sync_error(
 
 fn feed_from_row(row: &Row) -> Result<Feed, rusqlite::Error> {
     let last_synced_ms: Option<i64> = row.get("last_synced_at")?;
-    let last_synced_at = last_synced_ms
-        .and_then(DateTime::from_timestamp_millis)
-        .map(|dt| dt.to_rfc3339());
+    let created_ms: i64 = row.get("created_at")?;
     let view_mode_str: String = row.get("article_view_mode")?;
     Ok(Feed {
         id: row.get("id")?,
         title: row.get("title")?,
         source_url: row.get("source_url")?,
-        site_url: row.get::<_, Option<String>>("site_url")?.unwrap_or_default(),
-        description: row.get::<_, Option<String>>("description")?.unwrap_or_default(),
+        site_url: row.get("site_url")?,
+        description: row.get("description")?,
+        image_url: row.get("image_url")?,
+        folder: row.get("folder")?,
+        category: row.get("category")?,
+        article_view_mode: parse_view_mode(&view_mode_str),
         unread_count: row.get("unread_count")?,
         article_count: row.get("article_count")?,
-        last_synced_at,
-        article_view_mode: parse_view_mode(&view_mode_str),
+        last_synced_at: last_synced_ms.and_then(DateTime::from_timestamp_millis),
         last_error: row.get("last_error")?,
         error_count: row.get("error_count")?,
+        etag: row.get("etag")?,
+        last_modified: row.get("last_modified")?,
+        created_at: DateTime::from_timestamp_millis(created_ms).unwrap_or_else(Utc::now),
     })
 }
 
@@ -184,10 +195,4 @@ fn view_mode_str(mode: &ArticleViewMode) -> &'static str {
         ArticleViewMode::Rendered => "rendered",
         ArticleViewMode::External => "external",
     }
-}
-
-fn parse_iso_to_ms(s: &str) -> Option<i64> {
-    DateTime::parse_from_rfc3339(s)
-        .ok()
-        .map(|dt| dt.with_timezone(&Utc).timestamp_millis())
 }

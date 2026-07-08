@@ -24,9 +24,8 @@ rust/
 │       ├── error.rs         # AppError enum — project-wide error type
 │       ├── types.rs         # shared DTOs: Feed, Entry, Category, SyncProgress, ...
 │       ├── app.rs           # init_app() [#frb(init)], greet(), app_version()
-│       ├── reader.rs        # TODO(P1a): remove — legacy JSON-snapshot prototype
 │       ├── feed.rs          # (P0b) feed CRUD; (P1a) subscribe + sync
-│       ├── entry.rs         # (P0b) entry list/get/mark-read/star; (P1a) search
+│       ├── entry.rs         # (P0b) entry list/get/mark-read/star/adjacent; (P1a) search
 │       └── settings.rs      # (later) settings get/set
 │   ├── db/                  # (P0b) rusqlite pool, schema, migrations, repositories
 │   ├── feed/                # (P1a) fetch (reqwest) + parse (feed-rs)
@@ -110,11 +109,13 @@ Run `./scripts/frb.sh` (or `flutter_rust_bridge_codegen generate`) after **every
 > path.** Two `api/` modules exposing structs with the same name (e.g.
 > `types::Feed` and `reader::Feed`) produce a duplicate-Dart-class clash —
 > `frb_generated.dart` imports every `api/` module and codegen emits "multiple
-> objects with same key". Workaround: expose the type from only ONE module; do
-> NOT `#[frb(unignore)]` the duplicate. While `reader.rs` coexists with the new
-> persisted APIs, `feed.rs` reuses `reader::Feed` (and `types::Feed` /
-> `ArticleViewMode` / `FeedDraft` stay un-`#[frb(unignore)]`'d). P1a removes
-> `reader.rs` and switches `feed.rs` to `types::Feed`.
+> objects with same key". Fix: expose the type from only ONE module; do
+> NOT `#[frb(unignore)]` the duplicate. This clash existed while the legacy
+> `reader.rs` snapshot prototype coexisted with the persisted APIs: `feed.rs`
+> reused `reader::Feed` and `types::Feed` / `ArticleViewMode` / `FeedDraft`
+> stayed un-`#[frb(unignore)]`'d. P2a removed `reader.rs` and switched
+> `feed.rs` (and `db/repositories/feed.rs`) to `types::Feed`, so all DTOs are
+> now `#[frb(unignore)]`'d from `types.rs` with no duplicate (codegen INFO = 0).
 
 > **Convention — keep third-party crate types out of `api/`.** FRB codegen
 > scans `api/*.rs`; if it sees `rusqlite::`, `reqwest::`, `tokio::` types in

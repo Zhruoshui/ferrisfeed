@@ -4,7 +4,6 @@ import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/error.dart';
-import 'package:rss_reader/src/rust/api/reader.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 
 class ReaderApp extends StatelessWidget {
@@ -94,12 +93,6 @@ class _ReaderHomeState extends State<ReaderHome> {
                 tooltip: 'More actions',
                 onSelected: (action) => _handleMenuAction(action, controller),
                 itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: _ReaderMenuAction.clearRead,
-                    enabled:
-                        controller.hasReadArticles && !controller.isWorking,
-                    child: const Text('Clear read articles'),
-                  ),
                   PopupMenuItem(
                     value: _ReaderMenuAction.removeFeed,
                     enabled:
@@ -410,20 +403,6 @@ class _ReaderHomeState extends State<ReaderHome> {
     ReaderController controller,
   ) async {
     switch (action) {
-      case _ReaderMenuAction.clearRead:
-        final confirmed = await _confirmAction(
-          title: 'Clear read articles?',
-          body: 'Read articles will be removed from local storage.',
-          confirmLabel: 'Clear',
-        );
-        if (!confirmed) {
-          return;
-        }
-        await _runGuarded(
-          controller.clearReadArticles,
-          successMessage: 'Read articles removed.',
-        );
-        return;
       case _ReaderMenuAction.removeFeed:
         final feed = controller.selectedFeed;
         if (feed == null) {
@@ -829,8 +808,8 @@ class _FeedSidebar extends StatelessWidget {
                       controller.showFeed(feed.id);
                       onCloseRequested?.call();
                     },
-                    subtitle: feed.description.isNotEmpty
-                        ? _plainText(feed.description)
+                    subtitle: feed.description?.isNotEmpty == true
+                        ? _plainText(feed.description!)
                         : null,
                     errorText: feed.lastError,
                   ),
@@ -991,25 +970,60 @@ class _ArticleListPane extends StatelessWidget {
         Expanded(
           child: RefreshIndicator(
             onRefresh: onRefresh,
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-              itemCount: controller.articles.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final article = controller.articles[index];
-                final selected =
-                    splitDetail && controller.selectedArticle?.id == article.id;
-                return _ArticleListTile(
-                  article: article,
-                  selected: selected,
-                  onTap: () => onOpenArticle(article.id),
-                );
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification &&
+                    notification.metrics.pixels >=
+                        notification.metrics.maxScrollExtent - 240 &&
+                    controller.hasMore &&
+                    !controller.isLoadingMore &&
+                    !controller.isWorking) {
+                  controller.loadMore();
+                }
+                return false;
               },
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                itemCount: controller.articles.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  if (index >= controller.articles.length) {
+                    return _ListFooter(controller: controller);
+                  }
+                  final article = controller.articles[index];
+                  final selected =
+                      splitDetail && controller.selectedArticle?.id == article.id;
+                  return _ArticleListTile(
+                    article: article,
+                    selected: selected,
+                    onTap: () => onOpenArticle(article.id),
+                  );
+                },
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Footer shown at the end of the article list: a small spinner while a page
+/// is loading, or nothing once all entries are loaded.
+class _ListFooter extends StatelessWidget {
+  const _ListFooter({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.isLoadingMore) {
+      return const SizedBox.shrink();
+    }
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 16),
+      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 }
@@ -1021,7 +1035,7 @@ class _ArticleListTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final ArticleListItem article;
+  final EntryListItem article;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1152,7 +1166,7 @@ class _ArticleDetailPane extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: ArticleDetailBody(
-              article: article,
+              entry: article,
               effectiveMode: effectiveMode,
               feedTitle: controller.feedTitleFor(article.feedId),
               header: const SizedBox.shrink(),
@@ -1164,7 +1178,7 @@ class _ArticleDetailPane extends StatelessWidget {
     }
 
     return ArticleDetailBody(
-      article: article,
+      entry: article,
       effectiveMode: effectiveMode,
       feedTitle: controller.feedTitleFor(article.feedId),
       header: Padding(
@@ -1193,7 +1207,7 @@ class _ArticleDetailHeader extends StatelessWidget {
   });
 
   final ReaderController controller;
-  final Article article;
+  final Entry article;
   final bool showToolbar;
   final ArticleViewMode effectiveMode;
   final Future<void> Function() onCopyLink;
@@ -1267,8 +1281,8 @@ class _ArticleDetailHeader extends StatelessWidget {
           spacing: 12,
           runSpacing: 8,
           children: [
-            if (article.author.isNotEmpty)
-              Text(article.author, style: theme.textTheme.bodyMedium),
+            if (article.author != null && article.author!.isNotEmpty)
+              Text(article.author!, style: theme.textTheme.bodyMedium),
             Text(
               _formatTimestamp(article.publishedAt),
               style: theme.textTheme.bodyMedium,
@@ -1294,7 +1308,7 @@ class _ArticleDetailHeader extends StatelessWidget {
 class _ExternalModeNotice extends StatelessWidget {
   const _ExternalModeNotice({required this.article});
 
-  final Article article;
+  final Entry article;
 
   @override
   Widget build(BuildContext context) {
@@ -1506,7 +1520,6 @@ class _SyncProgressBar extends StatelessWidget implements PreferredSizeWidget {
 }
 
 enum _ReaderMenuAction {
-  clearRead,
   removeFeed,
   feedViewMode,
   defaultViewMode,
@@ -1550,12 +1563,11 @@ String _viewModeDescription(ArticleViewMode mode) {
   }
 }
 
-String _formatTimestamp(String? value) {
-  final parsed = value == null ? null : DateTime.tryParse(value);
-  if (parsed == null) {
+String _formatTimestamp(DateTime? value) {
+  if (value == null) {
     return 'Unknown date';
   }
-  final local = parsed.toLocal();
+  final local = value.toLocal();
   final month = local.month.toString().padLeft(2, '0');
   final day = local.day.toString().padLeft(2, '0');
   final hour = local.hour.toString().padLeft(2, '0');
@@ -1591,9 +1603,6 @@ String _describeError(Object error) {
       AppError_Unauthorized() => 'Unauthorized',
       AppError_Conflict(:final field0) => field0,
     };
-  }
-  if (error is ReaderError) {
-    return error.message;
   }
   if (error is ReaderAppException) {
     return error.message;

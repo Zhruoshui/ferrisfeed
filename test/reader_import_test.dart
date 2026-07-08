@@ -1,18 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rss_reader/main.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
-import 'package:rss_reader/src/rust/api/reader.dart';
+import 'package:rss_reader/src/rust/api/error.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 import 'package:rss_reader/src/rust/frb_generated.dart';
 
 void main() {
   // A single mock is installed once (FRB holds it as a static singleton); its
-  // DB-backed feed state is reset before each test so tests are isolated.
+  // DB-backed feed + entry state is reset before each test so tests are
+  // isolated.
   late _MockRustApi mockApi;
 
   setUpAll(() {
@@ -106,64 +105,94 @@ void main() {
     expect(summary.failedFeeds, 0);
   });
 
-  // --- Entry reading (snapshot-based, unchanged until P2a) ------------------
+  // --- Entry reading (persisted, P2a) ---------------------------------------
   //
-  // These pre-populate the in-memory snapshot directly (the path the entry
-  // reading UI still uses). The "All articles" view shows the snapshot articles
-  // regardless of the DB-backed feed list.
+  // These seed entries directly into the mock's in-memory store (the path the
+  // sync would populate) and exercise the controller's persisted entry flow:
+  // list filters, read-on-open, star toggle, and prev/next navigation.
 
-  test('unread filter shows only unread articles', () async {
-    final controller = ReaderController(
-      repository: ReaderRepository.memory(
-        initialSnapshotJson: _snapshotWithTwoArticles,
-      ),
-    );
+  test('unread filter shows only unread entries', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
     await controller.load();
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId, title: 'Newer', url: 'https://a/2',
+        publishedAt: DateTime.utc(2026, 6, 17, 11));
+    mockApi.seedEntry(feedId, title: 'Older', url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 6, 17, 10));
+
+    await controller.showAllArticles();
     expect(controller.articles.length, 2);
 
-    final firstArticleId = controller.articles.first.id;
-    await controller.openArticle(firstArticleId);
+    // Opening the newest entry marks it read.
+    final firstId = controller.articles.first.id;
+    await controller.openArticle(firstId);
+    expect(controller.selectedArticle?.isRead, isTrue);
 
-    controller.showAllArticles();
-    expect(controller.articles.length, 2);
-
-    controller.showUnreadArticles();
+    await controller.showUnreadArticles();
     expect(controller.articles.length, 1);
     expect(controller.articles.first.isRead, isFalse);
   });
 
-  test('adjacent article navigation moves within the list', () async {
-    final controller = ReaderController(
-      repository: ReaderRepository.memory(
-        initialSnapshotJson: _snapshotWithTwoArticles,
-      ),
-    );
+  test('adjacent entry navigation moves within the list', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
     await controller.load();
-    expect(controller.articles.length, 2);
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId, title: 'Older', url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 6, 17, 10));
+    mockApi.seedEntry(feedId, title: 'Newer', url: 'https://a/2',
+        publishedAt: DateTime.utc(2026, 6, 17, 11));
 
-    // After load the newest article (index 0) is selected.
+    // newest-first: [Newer, Older]. After load no entry is selected yet.
+    await controller.showAllArticles();
+    expect(controller.canSelectPreviousArticle, isFalse);
+    expect(controller.canSelectNextArticle, isFalse);
+
+    // Open the newest (index 0): no prev (nothing newer), next is Older.
+    await controller.openArticle(controller.articles.first.id);
     expect(controller.canSelectPreviousArticle, isFalse);
     expect(controller.canSelectNextArticle, isTrue);
 
+    // Move to the next (older) entry.
     await controller.selectAdjacentArticle(1);
     expect(controller.canSelectPreviousArticle, isTrue);
     expect(controller.canSelectNextArticle, isFalse);
   });
 
-  test('clear read articles removes read entries', () async {
-    final controller = ReaderController(
-      repository: ReaderRepository.memory(
-        initialSnapshotJson: _snapshotWithTwoArticles,
-      ),
-    );
+  test('star toggle persists the new state', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
     await controller.load();
-    final firstId = controller.articles.first.id;
-    await controller.openArticle(firstId);
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId, title: 'Star me', url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 6, 17, 10));
 
-    await controller.clearReadArticles();
+    await controller.showAllArticles();
+    await controller.openArticle(controller.articles.first.id);
+    expect(controller.selectedArticle?.isStarred, isFalse);
 
+    await controller.toggleSelectedArticleStar();
+    expect(controller.selectedArticle?.isStarred, isTrue);
+    expect(controller.articles.first.isStarred, isTrue);
+
+    await controller.toggleSelectedArticleStar();
+    expect(controller.selectedArticle?.isStarred, isFalse);
+  });
+
+  test('starred filter shows only starred entries', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
+    await controller.load();
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId, title: 'Plain', url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 6, 17, 10));
+    final starredId = mockApi.seedEntry(feedId, title: 'Loved', url: 'https://a/2',
+        publishedAt: DateTime.utc(2026, 6, 17, 11), isStarred: true);
+
+    await controller.showStarredArticles();
     expect(controller.articles.length, 1);
-    expect(controller.articles.first.isRead, isFalse);
+    expect(controller.articles.first.id, starredId);
   });
 
   // --- Settings -------------------------------------------------------------
@@ -209,22 +238,55 @@ void main() {
   });
 }
 
-/// Snapshot fixture with one feed and two articles (newest first after sort).
-const _snapshotWithTwoArticles = '''
-{"feeds":[{"id":"feed-snap-1","title":"Example Feed","sourceUrl":"https://example.com/feed.xml","siteUrl":"https://example.com","description":"","unreadCount":2,"articleCount":2,"lastSyncedAt":null,"lastError":null,"errorCount":0}],"articles":[{"id":"art-newer","feedId":"feed-snap-1","title":"Newer story","url":"https://example.com/2","author":"","summary":"Second","content":"","publishedAt":"2026-06-17T11:00:00Z","isRead":false,"isStarred":false},{"id":"art-older","feedId":"feed-snap-1","title":"Older story","url":"https://example.com/1","author":"","summary":"First","content":"","publishedAt":"2026-06-17T10:00:00Z","isRead":false,"isStarred":false}],"lastUpdatedAt":null}''';
-
+/// In-memory mock of the FRB `RustLibApi`. Mirrors the persisted feed + entry
+/// behaviour closely enough to exercise the controller's reading flow without a
+/// real SQLite database: feeds and entries live in lists, and the entry
+/// list/get/mark-read/star/adjacent methods reproduce the Rust query semantics
+/// (newest-first ordering, filters, pagination, prev/next neighbours).
 class _MockRustApi implements RustLibApi {
   final List<Feed> _dbFeeds = [];
+  final List<Entry> _entries = [];
   int _feedCounter = 0;
+  int _entryCounter = 0;
 
-  /// Clears DB-backed feed state so each test starts from an empty feed list.
   void reset() {
     _dbFeeds.clear();
+    _entries.clear();
     _feedCounter = 0;
+    _entryCounter = 0;
   }
 
-  /// P0b added the SQLite-backed feed/entry/category APIs to `RustLibApi`.
-  /// Unimplemented members fall through to `noSuchMethod`.
+  /// Seeds an entry for [feedId] into the mock store and returns its id.
+  String seedEntry(
+    String feedId, {
+    required String title,
+    required String url,
+    required DateTime publishedAt,
+    bool isRead = false,
+    bool isStarred = false,
+    String? content,
+  }) {
+    final id = 'entry-${++_entryCounter}';
+    final now = DateTime.now().toUtc();
+    _entries.add(Entry(
+      id: id,
+      feedId: feedId,
+      title: title,
+      url: url,
+      content: content,
+      summary: null,
+      author: null,
+      imageUrl: null,
+      publishedAt: publishedAt,
+      isRead: isRead,
+      isStarred: isStarred,
+      readProgress: null,
+      createdAt: now,
+    ));
+    _recountFeed(feedId);
+    return id;
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
@@ -235,24 +297,30 @@ class _MockRustApi implements RustLibApi {
 
   @override
   Future<Feed> crateApiFeedSubscribeFeed({required String url}) async {
-    // Idempotent: return the existing record for the same source URL.
     final existing = _dbFeeds.where((feed) => feed.sourceUrl == url).toList();
     if (existing.isNotEmpty) {
       return existing.first;
     }
     final uri = Uri.tryParse(url);
+    final now = DateTime.now().toUtc();
     final feed = Feed(
       id: 'feed-${++_feedCounter}',
       title: uri?.host ?? url,
       sourceUrl: url,
-      siteUrl: uri != null ? '${uri.scheme}://${uri.host}' : '',
-      description: '',
+      siteUrl: uri != null ? '${uri.scheme}://${uri.host}' : null,
+      description: null,
+      imageUrl: null,
+      folder: null,
+      category: null,
+      articleViewMode: ArticleViewMode.global,
       unreadCount: 0,
       articleCount: 0,
-      lastSyncedAt: DateTime.now().toUtc().toIso8601String(),
-      articleViewMode: ArticleViewMode.global,
+      lastSyncedAt: now,
       lastError: null,
       errorCount: 0,
+      etag: null,
+      lastModified: null,
+      createdAt: now,
     );
     _dbFeeds.add(feed);
     return feed;
@@ -268,6 +336,7 @@ class _MockRustApi implements RustLibApi {
   @override
   Future<void> crateApiFeedDeleteFeed({required String feedId}) async {
     _dbFeeds.removeWhere((feed) => feed.id == feedId);
+    _entries.removeWhere((entry) => entry.feedId == feedId);
   }
 
   @override
@@ -277,26 +346,9 @@ class _MockRustApi implements RustLibApi {
   }) async {
     final index = _dbFeeds.indexWhere((feed) => feed.id == feedId);
     if (index < 0) return;
-    final old = _dbFeeds[index];
-    _dbFeeds[index] = Feed(
-      id: old.id,
-      title: old.title,
-      sourceUrl: old.sourceUrl,
-      siteUrl: old.siteUrl,
-      description: old.description,
-      unreadCount: old.unreadCount,
-      articleCount: old.articleCount,
-      lastSyncedAt: old.lastSyncedAt,
-      articleViewMode: viewMode,
-      lastError: old.lastError,
-      errorCount: old.errorCount,
-    );
+    _dbFeeds[index] = _copyFeed(_dbFeeds[index], articleViewMode: viewMode);
   }
 
-  /// P1b: `refreshAllFeeds` returns a `Stream<SyncProgress>`. The mock emits one
-  /// final summary event (`done = true`) per subscribed feed so the controller's
-  /// `await for` loop completes with a non-zero `refreshedFeeds` count. No real
-  /// network/parse/upsert happens — this only exercises the controller wiring.
   @override
   Stream<SyncProgress> crateApiFeedRefreshAllFeeds() async* {
     final total = _dbFeeds.length;
@@ -328,113 +380,100 @@ class _MockRustApi implements RustLibApi {
     );
   }
 
-  // --- Legacy snapshot API (entry reading UI, unchanged until P2a) ----------
+  // --- Persisted entry API (P2a) -------------------------------------------
 
   @override
-  String crateApiReaderEmptyReaderSnapshotJson() =>
-      jsonEncode({'feeds': [], 'articles': [], 'lastUpdatedAt': null});
-
-  @override
-  ReaderSnapshot crateApiReaderDecodeReaderSnapshot({
-    required String snapshotJson,
-  }) =>
-      _snapshotFromJson(snapshotJson);
-
-  @override
-  List<ArticleListItem> crateApiReaderListArticles({
-    required String snapshotJson,
+  Future<List<EntryListItem>> crateApiEntryListEntries({
     String? feedId,
-    required bool showStarredOnly,
-    required bool showUnreadOnly,
-  }) {
-    final snapshot = _snapshotFromJson(snapshotJson);
-    final feedsById = {for (final feed in snapshot.feeds) feed.id: feed.title};
-    final items = snapshot.articles
-        .where((article) {
-          final feedMatches = feedId == null || article.feedId == feedId;
-          final starredMatches = !showStarredOnly || article.isStarred;
-          final unreadMatches = !showUnreadOnly || !article.isRead;
-          return feedMatches && starredMatches && unreadMatches;
-        })
-        .map((article) => ArticleListItem(
-              id: article.id,
-              feedId: article.feedId,
-              feedTitle: feedsById[article.feedId] ?? 'Unknown Feed',
-              title: article.title,
-              summary: article.summary,
-              publishedAt: article.publishedAt,
-              isRead: article.isRead,
-              isStarred: article.isStarred,
+    required bool unreadOnly,
+    required bool starredOnly,
+    required int limit,
+    required int offset,
+  }) async {
+    final feedTitles = {for (final f in _dbFeeds) f.id: f.title};
+    var items = _entries.where((e) {
+      final feedMatches = feedId == null || e.feedId == feedId;
+      final unreadMatches = !unreadOnly || !e.isRead;
+      final starredMatches = !starredOnly || e.isStarred;
+      return feedMatches && unreadMatches && starredMatches;
+    }).toList()
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    final page = items.skip(offset).take(limit).toList();
+    return page
+        .map((e) => EntryListItem(
+              id: e.id,
+              feedId: e.feedId,
+              feedTitle: feedTitles[e.feedId] ?? 'Unknown Feed',
+              title: e.title,
+              summary: e.summary ?? '',
+              publishedAt: e.publishedAt,
+              isRead: e.isRead,
+              isStarred: e.isStarred,
             ))
         .toList();
-
-    items.sort((left, right) {
-      final leftPublished = left.publishedAt ?? '';
-      final rightPublished = right.publishedAt ?? '';
-      return rightPublished.compareTo(leftPublished);
-    });
-    return items;
   }
 
   @override
-  Article crateApiReaderGetArticle({
-    required String snapshotJson,
-    required String articleId,
-  }) {
-    final snapshot = _snapshotFromJson(snapshotJson);
-    return snapshot.articles.firstWhere((article) => article.id == articleId);
+  Future<Entry> crateApiEntryGetEntry({required String entryId}) async {
+    final entry = _entries.where((e) => e.id == entryId).firstOrNull;
+    if (entry == null) {
+      throw AppError_NotFound(resource: 'entry', id: entryId);
+    }
+    return entry;
   }
 
   @override
-  String crateApiReaderMarkArticleRead({
-    required String snapshotJson,
-    required String articleId,
+  Future<void> crateApiEntryMarkEntryRead({
+    required String entryId,
     required bool isRead,
-  }) {
-    final snapshot = _jsonMap(snapshotJson);
-    final articles =
-        List<Map<String, dynamic>>.from(snapshot['articles'] as List).map(
-            (article) {
-      if (article['id'] == articleId) {
-        return {...article, 'isRead': isRead};
-      }
-      return article;
-    }).toList();
-    snapshot['articles'] = articles;
-    return _recountEncoded(snapshot);
+  }) async {
+    final index = _entries.indexWhere((e) => e.id == entryId);
+    if (index < 0) {
+      throw AppError_NotFound(resource: 'entry', id: entryId);
+    }
+    _entries[index] = _copyEntry(_entries[index], isRead: isRead);
+    _recountFeed(_entries[index].feedId);
   }
 
   @override
-  String crateApiReaderToggleArticleStar({
-    required String snapshotJson,
-    required String articleId,
-  }) {
-    final snapshot = _jsonMap(snapshotJson);
-    final articles =
-        List<Map<String, dynamic>>.from(snapshot['articles'] as List).map(
-            (article) {
-      if (article['id'] == articleId) {
-        return {...article, 'isStarred': !(article['isStarred'] as bool)};
-      }
-      return article;
-    }).toList();
-    snapshot['articles'] = articles;
-    return jsonEncode(snapshot);
+  Future<bool> crateApiEntryToggleEntryStar({required String entryId}) async {
+    final index = _entries.indexWhere((e) => e.id == entryId);
+    if (index < 0) {
+      throw AppError_NotFound(resource: 'entry', id: entryId);
+    }
+    final nowStarred = !_entries[index].isStarred;
+    _entries[index] = _copyEntry(_entries[index], isStarred: nowStarred);
+    return nowStarred;
   }
 
   @override
-  String crateApiReaderClearAllReadArticles({required String snapshotJson}) {
-    final snapshot = _jsonMap(snapshotJson);
-    final articles = List<Map<String, dynamic>>.from(
-      snapshot['articles'] as List,
-    )..removeWhere((article) => article['isRead'] == true);
-    snapshot['articles'] = articles;
-    return _recountEncoded(snapshot);
+  Future<AdjacentEntries> crateApiEntryGetAdjacentEntries({
+    required String entryId,
+    String? feedId,
+    required bool unreadOnly,
+    required bool starredOnly,
+  }) async {
+    // Reproduce the Rust semantics: newest-first ordering, prev = newer
+    // neighbour, next = older neighbour, both within the filter context.
+    final filtered = _entries.where((e) {
+      final feedMatches = feedId == null || e.feedId == feedId;
+      final unreadMatches = !unreadOnly || !e.isRead;
+      final starredMatches = !starredOnly || e.isStarred;
+      return feedMatches && unreadMatches && starredMatches;
+    }).toList()
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+
+    final index = filtered.indexWhere((e) => e.id == entryId);
+    if (index < 0) {
+      return const AdjacentEntries(prev: null, next: null);
+    }
+    final prev = index > 0 ? filtered[index - 1].id : null;
+    final next =
+        index < filtered.length - 1 ? filtered[index + 1].id : null;
+    return AdjacentEntries(prev: prev, next: next);
   }
 
-  @override
-  Future<ArticleViewMode> crateApiReaderArticleViewModeDefault() async =>
-      ArticleViewMode.global;
+  // --- App lifecycle -------------------------------------------------------
 
   @override
   Future<void> crateApiAppInitApp() async {}
@@ -445,89 +484,61 @@ class _MockRustApi implements RustLibApi {
   @override
   String crateApiAppAppVersion() => '0.1.0';
 
-  ArticleViewMode _viewModeFromName(String? name) {
-    switch (name) {
-      case 'webpage':
-        return ArticleViewMode.webpage;
-      case 'rendered':
-        return ArticleViewMode.rendered;
-      case 'external':
-      case 'external_':
-        return ArticleViewMode.external_;
-      case 'global':
-      default:
-        return ArticleViewMode.global;
-    }
+  // --- helpers --------------------------------------------------------------
+
+  void _recountFeed(String feedId) {
+    final index = _dbFeeds.indexWhere((f) => f.id == feedId);
+    if (index < 0) return;
+    final feedEntries = _entries.where((e) => e.feedId == feedId);
+    _dbFeeds[index] = _copyFeed(
+      _dbFeeds[index],
+      articleCount: feedEntries.length,
+      unreadCount: feedEntries.where((e) => !e.isRead).length,
+    );
   }
 
-  Map<String, dynamic> _jsonMap(String snapshotJson) {
-    if (snapshotJson.trim().isEmpty) {
-      return {
-        'feeds': <Map<String, dynamic>>[],
-        'articles': <Map<String, dynamic>>[],
-        'lastUpdatedAt': null,
-      };
-    }
-    return Map<String, dynamic>.from(jsonDecode(snapshotJson) as Map);
+  Feed _copyFeed(
+    Feed f, {
+    ArticleViewMode? articleViewMode,
+    int? unreadCount,
+    int? articleCount,
+  }) {
+    return Feed(
+      id: f.id,
+      title: f.title,
+      sourceUrl: f.sourceUrl,
+      siteUrl: f.siteUrl,
+      description: f.description,
+      imageUrl: f.imageUrl,
+      folder: f.folder,
+      category: f.category,
+      articleViewMode: articleViewMode ?? f.articleViewMode,
+      unreadCount: unreadCount ?? f.unreadCount,
+      articleCount: articleCount ?? f.articleCount,
+      lastSyncedAt: f.lastSyncedAt,
+      lastError: f.lastError,
+      errorCount: f.errorCount,
+      etag: f.etag,
+      lastModified: f.lastModified,
+      createdAt: f.createdAt,
+    );
   }
 
-  String _recountEncoded(Map<String, dynamic> snapshot) {
-    final feeds = List<Map<String, dynamic>>.from(snapshot['feeds'] as List);
-    final articles =
-        List<Map<String, dynamic>>.from(snapshot['articles'] as List);
-
-    final recountedFeeds = feeds.map((feed) {
-      final feedArticles = articles
-          .where((article) => article['feedId'] == feed['id'])
-          .toList();
-      final unreadCount = feedArticles
-          .where((article) => article['isRead'] != true)
-          .length;
-      return {
-        ...feed,
-        'articleCount': feedArticles.length,
-        'unreadCount': unreadCount,
-      };
-    }).toList();
-
-    snapshot['feeds'] = recountedFeeds;
-    return jsonEncode(snapshot);
-  }
-
-  ReaderSnapshot _snapshotFromJson(String snapshotJson) {
-    final decoded = _jsonMap(snapshotJson);
-    return ReaderSnapshot(
-      feeds: (decoded['feeds'] as List<dynamic>? ?? const [])
-          .map((value) => Feed(
-                id: value['id'] as String,
-                title: value['title'] as String,
-                sourceUrl: value['sourceUrl'] as String,
-                siteUrl: value['siteUrl'] as String,
-                description: value['description'] as String,
-                unreadCount: value['unreadCount'] as int,
-                articleCount: value['articleCount'] as int,
-                lastSyncedAt: value['lastSyncedAt'] as String?,
-                articleViewMode:
-                    _viewModeFromName(value['articleViewMode'] as String?),
-                lastError: value['lastError'] as String?,
-                errorCount: value['errorCount'] as int? ?? 0,
-              ))
-          .toList(),
-      articles: (decoded['articles'] as List<dynamic>? ?? const [])
-          .map((value) => Article(
-                id: value['id'] as String,
-                feedId: value['feedId'] as String,
-                title: value['title'] as String,
-                url: value['url'] as String,
-                author: value['author'] as String,
-                summary: value['summary'] as String,
-                content: value['content'] as String,
-                publishedAt: value['publishedAt'] as String?,
-                isRead: value['isRead'] as bool,
-                isStarred: value['isStarred'] as bool,
-              ))
-          .toList(),
-      lastUpdatedAt: decoded['lastUpdatedAt'] as String?,
+  Entry _copyEntry(Entry e, {bool? isRead, bool? isStarred}) {
+    return Entry(
+      id: e.id,
+      feedId: e.feedId,
+      title: e.title,
+      url: e.url,
+      content: e.content,
+      summary: e.summary,
+      author: e.author,
+      imageUrl: e.imageUrl,
+      publishedAt: e.publishedAt,
+      isRead: isRead ?? e.isRead,
+      isStarred: isStarred ?? e.isStarred,
+      readProgress: e.readProgress,
+      createdAt: e.createdAt,
     );
   }
 }

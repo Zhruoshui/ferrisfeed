@@ -6,7 +6,43 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+
+/// Previous/next entry ids within a filter context, used for prev/next
+/// navigation in the reading UI. The list is ordered by `published_at DESC`
+/// (newest-first), so `prev` is the newer neighbour and `next` is the older
+/// neighbour. Either may be `None` at the ends of the list.
+class AdjacentEntries {
+  final String? prev;
+  final String? next;
+
+  const AdjacentEntries({this.prev, this.next});
+
+  @override
+  int get hashCode => prev.hashCode ^ next.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AdjacentEntries &&
+          runtimeType == other.runtimeType &&
+          prev == other.prev &&
+          next == other.next;
+}
+
+/// How a feed's articles should be displayed.
+///
+/// `External` is escaped to `external_` in generated Dart because `external`
+/// is a Dart reserved word.
+enum ArticleViewMode {
+  global,
+  webpage,
+  rendered,
+  external_;
+
+  static Future<ArticleViewMode> default_() =>
+      RustLib.instance.api.crateApiTypesArticleViewModeDefault();
+}
 
 /// A simple category/folder grouping.
 class Category {
@@ -28,10 +64,6 @@ class Category {
 }
 
 /// A single article/entry belonging to a feed.
-///
-/// Ported from Livo `src/shared/types/entry.ts`, simplified to the fields
-/// needed for the P0b persistence layer. Readability/AI/media fields will be
-/// added in later tasks.
 class Entry {
   final String id;
   final String feedId;
@@ -187,6 +219,99 @@ class EntryListItem {
           isStarred == other.isStarred;
 }
 
+/// A subscribed feed.
+///
+/// Ported from Livo `src/shared/types/feed.ts`. Uses `DateTime<Utc>` for
+/// timestamps; `site_url`/`description` are nullable to match the schema.
+class Feed {
+  final String id;
+  final String title;
+
+  /// RSS/Atom source URL.
+  final String sourceUrl;
+
+  /// Human-facing website URL (may differ from the feed URL).
+  final String? siteUrl;
+  final String? description;
+  final String? imageUrl;
+  final String? folder;
+  final String? category;
+  final ArticleViewMode articleViewMode;
+  final int unreadCount;
+  final int articleCount;
+  final DateTime? lastSyncedAt;
+  final String? lastError;
+  final int errorCount;
+
+  /// HTTP caching helpers.
+  final String? etag;
+  final String? lastModified;
+  final DateTime createdAt;
+
+  const Feed({
+    required this.id,
+    required this.title,
+    required this.sourceUrl,
+    this.siteUrl,
+    this.description,
+    this.imageUrl,
+    this.folder,
+    this.category,
+    required this.articleViewMode,
+    required this.unreadCount,
+    required this.articleCount,
+    this.lastSyncedAt,
+    this.lastError,
+    required this.errorCount,
+    this.etag,
+    this.lastModified,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      sourceUrl.hashCode ^
+      siteUrl.hashCode ^
+      description.hashCode ^
+      imageUrl.hashCode ^
+      folder.hashCode ^
+      category.hashCode ^
+      articleViewMode.hashCode ^
+      unreadCount.hashCode ^
+      articleCount.hashCode ^
+      lastSyncedAt.hashCode ^
+      lastError.hashCode ^
+      errorCount.hashCode ^
+      etag.hashCode ^
+      lastModified.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Feed &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          sourceUrl == other.sourceUrl &&
+          siteUrl == other.siteUrl &&
+          description == other.description &&
+          imageUrl == other.imageUrl &&
+          folder == other.folder &&
+          category == other.category &&
+          articleViewMode == other.articleViewMode &&
+          unreadCount == other.unreadCount &&
+          articleCount == other.articleCount &&
+          lastSyncedAt == other.lastSyncedAt &&
+          lastError == other.lastError &&
+          errorCount == other.errorCount &&
+          etag == other.etag &&
+          lastModified == other.lastModified &&
+          createdAt == other.createdAt;
+}
+
 /// A feed URL discovered via auto-discovery (`<link rel="alternate">`), or the
 /// input URL itself when it already serves a feed. Returned by
 /// `api::feed::discover_feeds` so the Flutter add-feed dialog can let the user
@@ -216,6 +341,38 @@ class FeedCandidate {
           mimeType == other.mimeType;
 }
 
+/// Input for subscribing to a new feed (pre-fetch).
+class FeedDraft {
+  final String title;
+  final String sourceUrl;
+  final String? siteUrl;
+  final String? description;
+
+  const FeedDraft({
+    required this.title,
+    required this.sourceUrl,
+    this.siteUrl,
+    this.description,
+  });
+
+  @override
+  int get hashCode =>
+      title.hashCode ^
+      sourceUrl.hashCode ^
+      siteUrl.hashCode ^
+      description.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FeedDraft &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          sourceUrl == other.sourceUrl &&
+          siteUrl == other.siteUrl &&
+          description == other.description;
+}
+
 /// Progress payload pushed via `StreamSink` during a feed refresh.
 ///
 /// Mirrors Livo's `FeedRefreshProgressPayload`
@@ -224,7 +381,7 @@ class FeedCandidate {
 /// summary event with `done = true` and `feed_id = None`.
 ///
 /// **FRB constraint**: a function with a `StreamSink<T>` parameter can only
-/// return `()` or `Result<(), E>` — the return value is not delivered to Dart
+/// return `()` or `Result<(), E>` - the return value is not delivered to Dart
 /// as a value (only errors surface, as a stream/Future error). The cumulative
 /// sync totals therefore ride on the final `SyncProgress` event (`done = true`)
 /// rather than a separate `SyncReport` return value. `refresh_feed` (no stream)

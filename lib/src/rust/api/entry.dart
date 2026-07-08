@@ -9,14 +9,14 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
 /// Lists entries as lightweight list items, optionally filtered by feed,
-/// unread, and/or starred state. `limit` defaults to 50, `offset` to 0.
-/// Results are newest-first.
+/// unread, and/or starred state. Results are newest-first (`published_at DESC`)
+/// and paginated by `limit`/`offset`.
 Future<List<EntryListItem>> listEntries({
   String? feedId,
   required bool unreadOnly,
   required bool starredOnly,
-  int? limit,
-  int? offset,
+  required int limit,
+  required int offset,
 }) => RustLib.instance.api.crateApiEntryListEntries(
   feedId: feedId,
   unreadOnly: unreadOnly,
@@ -29,16 +29,33 @@ Future<List<EntryListItem>> listEntries({
 Future<Entry> getEntry({required String entryId}) =>
     RustLib.instance.api.crateApiEntryGetEntry(entryId: entryId);
 
-/// Sets an entry's read state. `NotFound` if the entry does not exist.
+/// Sets an entry's read state and recomputes the parent feed's cached
+/// `unread_count`. `NotFound` if the entry does not exist.
 Future<void> markEntryRead({required String entryId, required bool isRead}) =>
     RustLib.instance.api.crateApiEntryMarkEntryRead(
       entryId: entryId,
       isRead: isRead,
     );
 
-/// Toggles an entry's starred flag. `NotFound` if the entry does not exist.
-Future<void> toggleEntryStar({required String entryId}) =>
+/// Toggles an entry's starred flag and returns the new starred state.
+/// `NotFound` if the entry does not exist.
+Future<bool> toggleEntryStar({required String entryId}) =>
     RustLib.instance.api.crateApiEntryToggleEntryStar(entryId: entryId);
+
+/// Returns the previous (newer) and next (older) entry ids relative to
+/// `entry_id`, within the same filter context used by the entry list. Used by
+/// the reading UI for prev/next navigation.
+Future<AdjacentEntries> getAdjacentEntries({
+  required String entryId,
+  String? feedId,
+  required bool unreadOnly,
+  required bool starredOnly,
+}) => RustLib.instance.api.crateApiEntryGetAdjacentEntries(
+  entryId: entryId,
+  feedId: feedId,
+  unreadOnly: unreadOnly,
+  starredOnly: starredOnly,
+);
 
 /// Inserts new entries for a feed, deduplicating by URL within the feed.
 /// Returns the number of entries actually inserted.

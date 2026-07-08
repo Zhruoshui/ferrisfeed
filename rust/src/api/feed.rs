@@ -1,19 +1,14 @@
 //! Feed CRUD exposed over flutter_rust_bridge, backed by SQLite.
 //!
-//! Reuses the already-exposed `crate::api::reader::{Feed, ArticleViewMode}`
-//! types as the boundary DTOs. While `reader.rs` (the JSON-snapshot prototype)
-//! still exists, exposing `types::Feed` would generate a duplicate Dart `Feed`
-//! class (both modules are imported by `frb_generated.dart`), so the persisted
-//! feed API shares `reader::Feed`. P1a removes `reader.rs` and switches this to
-//! `types::Feed`.
+//! Uses the exposed `crate::api::types::{Feed, ArticleViewMode}` DTOs as the
+//! boundary types.
 //!
 //! All functions are plain `pub fn` (no `#[frb(sync)]`): they run on the FRB
 //! worker thread pool and return a `Future` to Dart, so the Flutter UI is never
 //! blocked by SQLite work (see `directory-structure.md` sync/async policy).
 
 use crate::api::error::AppError;
-use crate::api::reader::{ArticleViewMode, Feed};
-use crate::api::types::{FeedCandidate, SyncProgress, SyncReport};
+use crate::api::types::{ArticleViewMode, Feed, FeedCandidate, SyncProgress, SyncReport};
 use crate::db::connection::with_db;
 use crate::db::repositories;
 use crate::frb_generated::StreamSink;
@@ -45,8 +40,8 @@ pub fn upsert_feed(feed: Feed) -> Result<(), AppError> {
 pub fn update_feed(
     feed_id: String,
     title: String,
-    site_url: String,
-    description: String,
+    site_url: Option<String>,
+    description: Option<String>,
 ) -> Result<Feed, AppError> {
     with_db(|conn| {
         let mut feed = repositories::feed::get_feed_by_id(conn, &feed_id)?

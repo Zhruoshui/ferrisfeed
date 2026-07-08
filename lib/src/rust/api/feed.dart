@@ -6,7 +6,6 @@
 import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'reader.dart';
 import 'types.dart';
 
 /// Returns every feed, ordered by title.
@@ -25,8 +24,8 @@ Future<void> upsertFeed({required Feed feed}) =>
 Future<Feed> updateFeed({
   required String feedId,
   required String title,
-  required String siteUrl,
-  required String description,
+  String? siteUrl,
+  String? description,
 }) => RustLib.instance.api.crateApiFeedUpdateFeed(
   feedId: feedId,
   title: title,

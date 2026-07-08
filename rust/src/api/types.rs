@@ -1,15 +1,9 @@
 //! Shared DTOs and enums exposed across the flutter_rust_bridge boundary.
 //!
-//! These are the canonical types for the persisted reader model. They will
-//! replace the throwaway JSON-snapshot types still living in `reader.rs`
-//! (removed in P1a once the Flutter feed UI is rewired off the snapshot APIs).
-//!
-//! ## Naming note
-//!
-//! `Feed`, `ArticleViewMode`, and `FeedDraft` intentionally share their names
-//! with legacy types in `reader.rs`. While `reader.rs` still exists they are
-//! **not** marked `#[frb(unignore)]` to avoid duplicate Dart class generation.
-//! P1a removes `reader.rs` and exposes them here.
+//! These are the canonical types for the persisted reader model. The throwaway
+//! JSON-snapshot prototype (`reader.rs`) has been removed (P2a), so every DTO
+//! here is `#[frb(unignore)]`'d and codegen-exposed to Dart without any
+//! duplicate-identifier clash.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,11 +16,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// `External` is escaped to `external_` in generated Dart because `external`
 /// is a Dart reserved word.
-///
-/// Note: `Default` is intentionally NOT implemented here to avoid a duplicate
-/// key conflict with `reader::ArticleViewMode` during FRB codegen while both
-/// modules coexist. P1a removes `reader.rs` and a `Default` impl can be added
-/// back at that point.
+#[flutter_rust_bridge::frb(unignore)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ArticleViewMode {
@@ -36,14 +26,21 @@ pub enum ArticleViewMode {
     External,
 }
 
+impl Default for ArticleViewMode {
+    fn default() -> Self {
+        Self::Global
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Feed-related DTOs
 // ---------------------------------------------------------------------------
 
 /// A subscribed feed.
 ///
-/// Ported from Livo `src/shared/types/feed.ts` + the current `reader.rs` `Feed`,
-/// using `DateTime<Utc>` for timestamps.
+/// Ported from Livo `src/shared/types/feed.ts`. Uses `DateTime<Utc>` for
+/// timestamps; `site_url`/`description` are nullable to match the schema.
+#[flutter_rust_bridge::frb(unignore)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Feed {
     pub id: String,
@@ -77,6 +74,7 @@ pub struct Category {
 }
 
 /// Input for subscribing to a new feed (pre-fetch).
+#[flutter_rust_bridge::frb(unignore)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeedDraft {
     pub title: String,
@@ -105,10 +103,6 @@ pub struct FeedCandidate {
 // ---------------------------------------------------------------------------
 
 /// A single article/entry belonging to a feed.
-///
-/// Ported from Livo `src/shared/types/entry.ts`, simplified to the fields
-/// needed for the P0b persistence layer. Readability/AI/media fields will be
-/// added in later tasks.
 #[flutter_rust_bridge::frb(unignore)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
@@ -153,6 +147,17 @@ pub struct EntryDraft {
     pub published_at: Option<DateTime<Utc>>,
 }
 
+/// Previous/next entry ids within a filter context, used for prev/next
+/// navigation in the reading UI. The list is ordered by `published_at DESC`
+/// (newest-first), so `prev` is the newer neighbour and `next` is the older
+/// neighbour. Either may be `None` at the ends of the list.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdjacentEntries {
+    pub prev: Option<String>,
+    pub next: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Sync / streaming
 // ---------------------------------------------------------------------------
@@ -165,7 +170,7 @@ pub struct EntryDraft {
 /// summary event with `done = true` and `feed_id = None`.
 ///
 /// **FRB constraint**: a function with a `StreamSink<T>` parameter can only
-/// return `()` or `Result<(), E>` — the return value is not delivered to Dart
+/// return `()` or `Result<(), E>` - the return value is not delivered to Dart
 /// as a value (only errors surface, as a stream/Future error). The cumulative
 /// sync totals therefore ride on the final `SyncProgress` event (`done = true`)
 /// rather than a separate `SyncReport` return value. `refresh_feed` (no stream)

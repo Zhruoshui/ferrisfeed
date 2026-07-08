@@ -7,7 +7,6 @@ import 'api/app.dart';
 import 'api/entry.dart';
 import 'api/error.dart';
 import 'api/feed.dart';
-import 'api/reader.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -41,13 +40,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AdjacentEntries dco_decode_adjacent_entries(dynamic raw);
+
+  @protected
   AppError dco_decode_app_error(dynamic raw);
-
-  @protected
-  Article dco_decode_article(dynamic raw);
-
-  @protected
-  ArticleListItem dco_decode_article_list_item(dynamic raw);
 
   @protected
   ArticleViewMode dco_decode_article_view_mode(dynamic raw);
@@ -66,12 +62,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Feed dco_decode_box_autoadd_feed(dynamic raw);
-
-  @protected
-  FeedDraft dco_decode_box_autoadd_feed_draft(dynamic raw);
-
-  @protected
-  int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
   Category dco_decode_category(dynamic raw);
@@ -104,16 +94,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
-  ImportFeedResult dco_decode_import_feed_result(dynamic raw);
-
-  @protected
   List<String> dco_decode_list_String(dynamic raw);
-
-  @protected
-  List<Article> dco_decode_list_article(dynamic raw);
-
-  @protected
-  List<ArticleListItem> dco_decode_list_article_list_item(dynamic raw);
 
   @protected
   List<Category> dco_decode_list_category(dynamic raw);
@@ -143,15 +124,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
-  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
-
-  @protected
-  ReaderError dco_decode_reader_error(dynamic raw);
-
-  @protected
-  ReaderSnapshot dco_decode_reader_snapshot(dynamic raw);
-
-  @protected
   SyncProgress dco_decode_sync_progress(dynamic raw);
 
   @protected
@@ -159,6 +131,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_16(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -186,13 +161,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AdjacentEntries sse_decode_adjacent_entries(SseDeserializer deserializer);
+
+  @protected
   AppError sse_decode_app_error(SseDeserializer deserializer);
-
-  @protected
-  Article sse_decode_article(SseDeserializer deserializer);
-
-  @protected
-  ArticleListItem sse_decode_article_list_item(SseDeserializer deserializer);
 
   @protected
   ArticleViewMode sse_decode_article_view_mode(SseDeserializer deserializer);
@@ -211,12 +183,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Feed sse_decode_box_autoadd_feed(SseDeserializer deserializer);
-
-  @protected
-  FeedDraft sse_decode_box_autoadd_feed_draft(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   Category sse_decode_category(SseDeserializer deserializer);
@@ -249,18 +215,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
-  ImportFeedResult sse_decode_import_feed_result(SseDeserializer deserializer);
-
-  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
-
-  @protected
-  List<Article> sse_decode_list_article(SseDeserializer deserializer);
-
-  @protected
-  List<ArticleListItem> sse_decode_list_article_list_item(
-    SseDeserializer deserializer,
-  );
 
   @protected
   List<Category> sse_decode_list_category(SseDeserializer deserializer);
@@ -294,15 +249,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
-  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
-
-  @protected
-  ReaderError sse_decode_reader_error(SseDeserializer deserializer);
-
-  @protected
-  ReaderSnapshot sse_decode_reader_snapshot(SseDeserializer deserializer);
-
-  @protected
   SyncProgress sse_decode_sync_progress(SseDeserializer deserializer);
 
   @protected
@@ -310,6 +256,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -342,16 +291,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
-  void sse_encode_app_error(AppError self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_article(Article self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_article_list_item(
-    ArticleListItem self,
+  void sse_encode_adjacent_entries(
+    AdjacentEntries self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_app_error(AppError self, SseSerializer serializer);
 
   @protected
   void sse_encode_article_view_mode(
@@ -376,15 +322,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_feed(Feed self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_feed_draft(
-    FeedDraft self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_category(Category self, SseSerializer serializer);
@@ -417,22 +354,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
-  void sse_encode_import_feed_result(
-    ImportFeedResult self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_article(List<Article> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_article_list_item(
-    List<ArticleListItem> self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_list_category(List<Category> self, SseSerializer serializer);
@@ -477,18 +399,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
-  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_reader_error(ReaderError self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_reader_snapshot(
-    ReaderSnapshot self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_sync_progress(SyncProgress self, SseSerializer serializer);
 
   @protected
@@ -496,6 +406,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

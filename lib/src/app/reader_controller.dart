@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
 import 'package:rss_reader/src/rust/api/feed.dart' as rust_feed;
-import 'package:rss_reader/src/rust/api/reader.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 
 class RefreshSummary {
@@ -16,6 +16,14 @@ class RefreshSummary {
   final int failedFeeds;
 }
 
+/// Page size for the entry list. Additional pages are appended on
+/// scroll-to-bottom (see [loadMore]).
+const _entryPageSize = 50;
+
+/// Controller for the reading UI, backed by the persisted SQLite entry/feed
+/// APIs (P2a). The in-memory JSON snapshot is gone: every list/detail/read/
+/// star mutation round-trips through the FRB entry API so state survives
+/// restarts and stays consistent with the feed sidebar.
 class ReaderController extends ChangeNotifier {
   ReaderController({required ReaderRepository repository}) : this._(repository);
 
@@ -23,31 +31,25 @@ class ReaderController extends ChangeNotifier {
 
   final ReaderRepository _repository;
 
-  ReaderSnapshot _snapshot = const ReaderSnapshot(
-    feeds: [],
-    articles: [],
-    lastUpdatedAt: null,
-  );
-  String _snapshotJson = '';
-  List<ArticleListItem> _articles = const [];
-  Article? _selectedArticle;
-  String? _selectedArticleId;
+  List<Feed> _dbFeeds = const [];
+  List<EntryListItem> _articles = const [];
+  Entry? _selectedEntry;
+  String? _selectedEntryId;
+  /// Previous (newer) / next (older) entry ids for the selected entry, within
+  /// the current filter context. Refreshed whenever an entry is opened.
+  AdjacentEntries? _adjacent;
   String? _selectedFeedId;
   bool _showStarredOnly = false;
   bool _showUnreadOnly = false;
   bool _isWorking = false;
   bool _isLoaded = false;
+  bool _isLoadingMore = false;
+  bool _hasMore = false;
 
   /// Current feed-sync progress (`null` when not syncing). Updated from the
   /// `StreamSink<SyncProgress>` events emitted by `refreshAllFeeds` so the UI
   /// can show per-feed progress (total/completed/new) during a refresh.
   SyncProgress? _syncProgress;
-
-  /// Feeds shown in the sidebar — DB-backed via `listFeeds()` (P1a). Article
-  /// reading still uses the in-memory snapshot until P2a, so a newly subscribed
-  /// feed's ID will not match any snapshot articles (no entries are synced
-  /// until P1b). P1b+P2a reconcile the two sources.
-  List<Feed> _dbFeeds = const [];
 
   /// App-wide default mode used when a feed is configured as
   /// [ArticleViewMode.global]. `rendered` keeps content in-app by default.
@@ -113,40 +115,39 @@ class ReaderController extends ChangeNotifier {
     return feedMode;
   }
 
-  /// Effective view mode for the currently selected article, or `null` when no
-  /// article is selected.
+  /// Effective view mode for the currently selected entry, or `null` when no
+  /// entry is selected.
   ArticleViewMode? get selectedArticleEffectiveMode {
-    final article = _selectedArticle;
-    if (article == null) {
+    final entry = _selectedEntry;
+    if (entry == null) {
       return null;
     }
-    return effectiveViewModeForFeed(article.feedId);
+    return effectiveViewModeForFeed(entry.feedId);
   }
 
-  /// Current sync progress, or `null` when no refresh is running. The UI binds
-  /// to this to render a progress bar + per-feed status.
+  /// Current sync progress, or `null` when no refresh is running.
   SyncProgress? get syncProgress => _syncProgress;
 
-  ReaderSnapshot get snapshot => _snapshot;
   List<Feed> get feeds => _dbFeeds;
-  List<ArticleListItem> get articles => _articles;
-  Article? get selectedArticle => _selectedArticle;
+  List<EntryListItem> get articles => _articles;
+  Entry? get selectedArticle => _selectedEntry;
   bool get isWorking => _isWorking;
   bool get isLoaded => _isLoaded;
   bool get hasFeeds => feeds.isNotEmpty;
   bool get hasArticles => articles.isNotEmpty;
   bool get isShowingStarredOnly => _showStarredOnly;
   bool get isShowingUnreadOnly => _showUnreadOnly;
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
   String? get selectedFeedId => _selectedFeedId;
   Feed? get selectedFeed => _findFeed(_selectedFeedId);
   int get totalUnreadCount =>
       feeds.fold(0, (sum, feed) => sum + feed.unreadCount);
+  /// Count of starred entries among the currently loaded article list.
   int get starredCount =>
-      _snapshot.articles.where((article) => article.isStarred).length;
+      _articles.where((article) => article.isStarred).length;
   int get visibleUnreadCount =>
       _articles.where((article) => !article.isRead).length;
-  bool get hasReadArticles =>
-      _snapshot.articles.any((article) => article.isRead);
   bool get canRemoveSelectedFeed => _selectedFeedId != null;
 
   String get currentViewTitle {
@@ -178,9 +179,8 @@ class ReaderController extends ChangeNotifier {
     _setWorking(true);
     try {
       await _loadPersistedSettings();
-      _snapshotJson = await _repository.loadSnapshotJson();
-      _syncFromSnapshotJson();
       await _loadDbFeeds();
+      await _reloadArticles();
       _isLoaded = true;
     } finally {
       _setWorking(false);
@@ -213,7 +213,7 @@ class ReaderController extends ChangeNotifier {
     try {
       await _repository.setSetting(key, value);
     } catch (_) {
-      // Settings are best-effort; snapshot persistence is the durable path.
+      // Settings are best-effort.
     }
   }
 
@@ -246,41 +246,53 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
-  void showAllArticles() {
+  /// The filter arguments passed to `listEntries` / `getAdjacentEntries` for
+  /// the current view.
+  bool get _filterUnreadOnly => _showUnreadOnly;
+  bool get _filterStarredOnly => _showStarredOnly;
+
+  Future<void> showAllArticles() async {
     _selectedFeedId = null;
     _showStarredOnly = false;
     _showUnreadOnly = false;
-    _syncFromSnapshotJson();
-    notifyListeners();
+    _selectedEntryId = null;
+    _selectedEntry = null;
+    _adjacent = null;
+    await _runAndNotify(_reloadArticles);
   }
 
-  void showStarredArticles() {
+  Future<void> showStarredArticles() async {
     _selectedFeedId = null;
     _showStarredOnly = true;
     _showUnreadOnly = false;
-    _syncFromSnapshotJson();
-    notifyListeners();
+    _selectedEntryId = null;
+    _selectedEntry = null;
+    _adjacent = null;
+    await _runAndNotify(_reloadArticles);
   }
 
-  void showUnreadArticles() {
+  Future<void> showUnreadArticles() async {
     _selectedFeedId = null;
     _showStarredOnly = false;
     _showUnreadOnly = true;
-    _syncFromSnapshotJson();
-    notifyListeners();
+    _selectedEntryId = null;
+    _selectedEntry = null;
+    _adjacent = null;
+    await _runAndNotify(_reloadArticles);
   }
 
-  void showFeed(String feedId) {
+  Future<void> showFeed(String feedId) async {
     _selectedFeedId = feedId;
     _showStarredOnly = false;
     _showUnreadOnly = false;
-    _syncFromSnapshotJson();
-    notifyListeners();
+    _selectedEntryId = null;
+    _selectedEntry = null;
+    _adjacent = null;
+    await _runAndNotify(_reloadArticles);
   }
 
   /// Discovers feed candidates at [url] via the Rust HTTP + parse/discover
-  /// pipeline. The add-feed dialog calls this, shows a picker when there are
-  /// multiple candidates, then calls [subscribeFeed].
+  /// pipeline.
   Future<List<FeedCandidate>> discoverFeeds(String url) async {
     _setWorking(true);
     try {
@@ -291,8 +303,7 @@ class ReaderController extends ChangeNotifier {
   }
 
   /// Subscribes to [url] via Rust (fetch + parse + normalize + persist). Reloads
-  /// the DB feed list and selects the new feed. Persists feed metadata only —
-  /// entry sync is P1b.
+  /// the DB feed list and selects the new feed.
   Future<void> subscribeFeed(String url) async {
     _setWorking(true);
     try {
@@ -301,8 +312,10 @@ class ReaderController extends ChangeNotifier {
       _selectedFeedId = feed.id;
       _showStarredOnly = false;
       _showUnreadOnly = false;
-      _selectedArticleId = null;
-      _syncFromSnapshotJson();
+      _selectedEntryId = null;
+      _selectedEntry = null;
+      _adjacent = null;
+      await _reloadArticles();
       notifyListeners();
     } finally {
       _setWorking(false);
@@ -314,13 +327,6 @@ class ReaderController extends ChangeNotifier {
       throw const ReaderAppException('Add a feed before refreshing.');
     }
 
-    // P1b: real feed sync. `refreshAllFeeds` returns a `Stream<SyncProgress>`
-    // (one event per feed + a final summary event with `done = true`). The
-    // stream is consumed with `await for`; per-feed progress updates the UI via
-    // `notifyListeners`. Per-feed failures are isolated in Rust (recorded on the
-    // feed row + reported in the event's `error` field), so the stream always
-    // completes — only a catastrophic setup error (e.g. DB not initialized)
-    // throws, which `_runGuardedResult` surfaces.
     _setWorking(true);
     var completed = 0;
     var failed = 0;
@@ -334,9 +340,10 @@ class ReaderController extends ChangeNotifier {
         _syncProgress = progress;
         notifyListeners();
       }
-      // Reload the DB feed list so unread/article counts reflect the new entries.
+      // Reload feeds (unread/article counts) and the entry list so newly
+      // synced entries appear.
       await _loadDbFeeds();
-      _syncFromSnapshotJson();
+      await _reloadArticles();
       notifyListeners();
       return RefreshSummary(
         refreshedFeeds: completed,
@@ -361,9 +368,11 @@ class ReaderController extends ChangeNotifier {
       _selectedFeedId = null;
       _showStarredOnly = false;
       _showUnreadOnly = false;
-      _selectedArticleId = null;
+      _selectedEntryId = null;
+      _selectedEntry = null;
+      _adjacent = null;
       await _loadDbFeeds();
-      _syncFromSnapshotJson();
+      await _reloadArticles();
       notifyListeners();
     } finally {
       _setWorking(false);
@@ -381,125 +390,107 @@ class ReaderController extends ChangeNotifier {
     }
   }
 
-  Future<void> clearReadArticles() async {
+  /// Opens (and selects) [entryId]. Marks the entry read on open and refreshes
+  /// the prev/next neighbours within the current filter.
+  Future<void> openArticle(String entryId, {bool markAsRead = true}) async {
     _setWorking(true);
     try {
-      final nextSnapshotJson = clearAllReadArticles(
-        snapshotJson: _snapshotJson,
-      );
-      if (_selectedArticle != null && _selectedArticle!.isRead) {
-        _selectedArticleId = null;
+      var entry = await rust_entry.getEntry(entryId: entryId);
+      if (markAsRead && !entry.isRead) {
+        await rust_entry.markEntryRead(entryId: entryId, isRead: true);
+        entry = await rust_entry.getEntry(entryId: entryId);
+        // Reflect the read state in the cached list item and the feed counts.
+        _updateArticleInList(entryId, isRead: true);
+        await _loadDbFeeds();
       }
-      await _replaceSnapshot(nextSnapshotJson);
+      _selectedEntryId = entryId;
+      _selectedEntry = entry;
+      _adjacent = await rust_entry.getAdjacentEntries(
+        entryId: entryId,
+        feedId: _selectedFeedId,
+        unreadOnly: _filterUnreadOnly,
+        starredOnly: _filterStarredOnly,
+      );
+      notifyListeners();
     } finally {
       _setWorking(false);
     }
   }
 
-  Future<void> openArticle(String articleId, {bool markAsRead = true}) async {
-    final existing = getArticle(
-      snapshotJson: _snapshotJson,
-      articleId: articleId,
-    );
-
-    if (markAsRead && !existing.isRead) {
-      _setWorking(true);
-      try {
-        final nextSnapshotJson = markArticleRead(
-          snapshotJson: _snapshotJson,
-          articleId: articleId,
-          isRead: true,
-        );
-        _selectedArticleId = articleId;
-        await _replaceSnapshot(nextSnapshotJson);
-      } finally {
-        _setWorking(false);
-      }
-      return;
-    }
-
-    _selectedArticleId = articleId;
-    _selectedArticle = existing;
-    notifyListeners();
-  }
-
+  /// Sets the selected entry's read state.
   Future<void> setSelectedArticleRead(bool isRead) async {
-    final article = _selectedArticle;
-    if (article == null || article.isRead == isRead) {
+    final entry = _selectedEntry;
+    if (entry == null || entry.isRead == isRead) {
       return;
     }
 
     _setWorking(true);
     try {
-      final nextSnapshotJson = markArticleRead(
-        snapshotJson: _snapshotJson,
-        articleId: article.id,
-        isRead: isRead,
-      );
-      _selectedArticleId = article.id;
-      await _replaceSnapshot(nextSnapshotJson);
+      await rust_entry.markEntryRead(entryId: entry.id, isRead: isRead);
+      _selectedEntry = _withEntryUpdates(entry, isRead: isRead);
+      _updateArticleInList(entry.id, isRead: isRead);
+      await _loadDbFeeds();
+      notifyListeners();
     } finally {
       _setWorking(false);
     }
   }
 
+  /// Toggles the selected entry's star. The new starred state is returned by
+  /// the API and applied locally.
   Future<void> toggleSelectedArticleStar() async {
-    final article = _selectedArticle;
-    if (article == null) {
+    final entry = _selectedEntry;
+    if (entry == null) {
       return;
     }
 
     _setWorking(true);
     try {
-      final nextSnapshotJson = toggleArticleStar(
-        snapshotJson: _snapshotJson,
-        articleId: article.id,
-      );
-      _selectedArticleId = article.id;
-      await _replaceSnapshot(nextSnapshotJson);
+      final nowStarred =
+          await rust_entry.toggleEntryStar(entryId: entry.id);
+      _selectedEntry = _withEntryUpdates(entry, isStarred: nowStarred);
+      _updateArticleInList(entry.id, isStarred: nowStarred);
+      notifyListeners();
     } finally {
       _setWorking(false);
     }
   }
 
-  /// Moves the selected article by [offset] positions within the current
-  /// article list. Opens (and marks read) the target article. No-op when the
-  /// resulting index is out of bounds.
+  /// Moves to the previous (offset -1, newer) or next (offset +1, older)
+  /// entry within the current filter, using the cached adjacent ids.
   Future<void> selectAdjacentArticle(int offset) async {
-    if (_articles.isEmpty || _selectedArticleId == null) {
+    final targetId = offset < 0 ? _adjacent?.prev : _adjacent?.next;
+    if (targetId == null) {
       return;
     }
-    final currentIndex = _articles.indexWhere(
-      (article) => article.id == _selectedArticleId,
-    );
-    if (currentIndex < 0) {
-      return;
-    }
-    final targetIndex = currentIndex + offset;
-    if (targetIndex < 0 || targetIndex >= _articles.length) {
-      return;
-    }
-    await openArticle(_articles[targetIndex].id);
+    await openArticle(targetId);
   }
 
-  bool get canSelectPreviousArticle {
-    if (_articles.isEmpty || _selectedArticleId == null) {
-      return false;
-    }
-    final currentIndex = _articles.indexWhere(
-      (article) => article.id == _selectedArticleId,
-    );
-    return currentIndex > 0;
-  }
+  bool get canSelectPreviousArticle => _adjacent?.prev != null;
+  bool get canSelectNextArticle => _adjacent?.next != null;
 
-  bool get canSelectNextArticle {
-    if (_articles.isEmpty || _selectedArticleId == null) {
-      return false;
+  /// Appends the next page of entries to the article list (scroll-to-bottom
+  /// pagination). No-op when there are no more entries or a page is loading.
+  Future<void> loadMore() async {
+    if (!_hasMore || _isLoadingMore) {
+      return;
     }
-    final currentIndex = _articles.indexWhere(
-      (article) => article.id == _selectedArticleId,
-    );
-    return currentIndex >= 0 && currentIndex < _articles.length - 1;
+    _isLoadingMore = true;
+    notifyListeners();
+    try {
+      final next = await rust_entry.listEntries(
+        feedId: _selectedFeedId,
+        unreadOnly: _filterUnreadOnly,
+        starredOnly: _filterStarredOnly,
+        limit: _entryPageSize,
+        offset: _articles.length,
+      );
+      _articles = [..._articles, ...next];
+      _hasMore = next.length >= _entryPageSize;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
   }
 
   String feedTitleFor(String feedId) {
@@ -512,6 +503,79 @@ class ReaderController extends ChangeNotifier {
     super.dispose();
   }
 
+  // --- internals ------------------------------------------------------------
+
+  Future<void> _reloadArticles() async {
+    final items = await rust_entry.listEntries(
+      feedId: _selectedFeedId,
+      unreadOnly: _filterUnreadOnly,
+      starredOnly: _filterStarredOnly,
+      limit: _entryPageSize,
+      offset: 0,
+    );
+    _articles = items;
+    _hasMore = items.length >= _entryPageSize;
+
+    // Keep the current selection if it is still in the list; otherwise clear
+    // the detail pane.
+    final selectedStillVisible = _selectedEntryId != null &&
+        items.any((item) => item.id == _selectedEntryId);
+    if (!selectedStillVisible) {
+      _selectedEntryId = null;
+      _selectedEntry = null;
+      _adjacent = null;
+    }
+  }
+
+  Future<void> _runAndNotify(Future<void> Function() action) async {
+    _setWorking(true);
+    try {
+      await action();
+      notifyListeners();
+    } finally {
+      _setWorking(false);
+    }
+  }
+
+  /// Reconstructs an [EntryListItem] with the given fields overridden, so the
+  /// cached list reflects mutations without a full reload (keeps the list
+  /// stable while reading).
+  void _updateArticleInList(String id, {bool? isRead, bool? isStarred}) {
+    final index = _articles.indexWhere((item) => item.id == id);
+    if (index < 0) {
+      return;
+    }
+    final old = _articles[index];
+    _articles[index] = EntryListItem(
+      id: old.id,
+      feedId: old.feedId,
+      feedTitle: old.feedTitle,
+      title: old.title,
+      summary: old.summary,
+      publishedAt: old.publishedAt,
+      isRead: isRead ?? old.isRead,
+      isStarred: isStarred ?? old.isStarred,
+    );
+  }
+
+  Entry _withEntryUpdates(Entry entry, {bool? isRead, bool? isStarred}) {
+    return Entry(
+      id: entry.id,
+      feedId: entry.feedId,
+      title: entry.title,
+      url: entry.url,
+      content: entry.content,
+      summary: entry.summary,
+      author: entry.author,
+      imageUrl: entry.imageUrl,
+      publishedAt: entry.publishedAt,
+      isRead: isRead ?? entry.isRead,
+      isStarred: isStarred ?? entry.isStarred,
+      readProgress: entry.readProgress,
+      createdAt: entry.createdAt,
+    );
+  }
+
   Feed? _findFeed(String? feedId) {
     if (feedId == null) {
       return null;
@@ -522,41 +586,6 @@ class ReaderController extends ChangeNotifier {
       }
     }
     return null;
-  }
-
-  Future<void> _replaceSnapshot(String snapshotJson) async {
-    _snapshotJson = snapshotJson;
-    await _repository.saveSnapshotJson(snapshotJson);
-    _syncFromSnapshotJson();
-    notifyListeners();
-  }
-
-  void _syncFromSnapshotJson() {
-    _snapshot = decodeReaderSnapshot(snapshotJson: _snapshotJson);
-    _articles = listArticles(
-      snapshotJson: _snapshotJson,
-      feedId: _selectedFeedId,
-      showStarredOnly: _showStarredOnly,
-      showUnreadOnly: _showUnreadOnly,
-    );
-
-    if (_articles.isEmpty) {
-      _selectedArticleId = null;
-      _selectedArticle = null;
-      return;
-    }
-
-    final selectedStillVisible =
-        _selectedArticleId != null &&
-        _articles.any((article) => article.id == _selectedArticleId);
-    if (!selectedStillVisible) {
-      _selectedArticleId = _articles.first.id;
-    }
-
-    _selectedArticle = getArticle(
-      snapshotJson: _snapshotJson,
-      articleId: _selectedArticleId!,
-    );
   }
 
   void _setWorking(bool value) {

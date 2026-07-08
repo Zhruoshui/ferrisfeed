@@ -5,11 +5,10 @@
 //! be initialized once per process). Each test builds a fresh in-memory DB with
 //! migrations applied and `foreign_keys=ON`.
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 
-use crate::api::reader::{ArticleViewMode, Feed};
-use crate::api::types::EntryDraft;
+use crate::api::types::{ArticleViewMode, EntryDraft, Feed};
 use crate::api::AppError;
 use crate::db::repositories::{category, entry, feed};
 
@@ -26,14 +25,20 @@ fn sample_feed(id: &str, url: &str) -> Feed {
         id: id.to_owned(),
         title: format!("Feed {id}"),
         source_url: url.to_owned(),
-        site_url: "https://example.com".to_owned(),
-        description: "desc".to_owned(),
+        site_url: Some("https://example.com".to_owned()),
+        description: Some("desc".to_owned()),
+        image_url: None,
+        folder: None,
+        category: None,
+        article_view_mode: ArticleViewMode::default(),
         unread_count: 0,
         article_count: 0,
         last_synced_at: None,
-        article_view_mode: ArticleViewMode::default(),
         last_error: None,
         error_count: 0,
+        etag: None,
+        last_modified: None,
+        created_at: Utc::now(),
     }
 }
 
@@ -45,6 +50,19 @@ fn draft(title: &str, url: &str) -> EntryDraft {
         summary: Some("summary".to_owned()),
         content: Some("content".to_owned()),
         published_at: Some(Utc::now()),
+    }
+}
+
+/// Like [`draft`] but with an explicit publish time (epoch-millis), so
+/// pagination / adjacent-entry tests get a deterministic newest-first order.
+fn draft_at(title: &str, url: &str, published_ms: i64) -> EntryDraft {
+    EntryDraft {
+        title: title.to_owned(),
+        url: url.to_owned(),
+        author: Some("Author".to_owned()),
+        summary: Some("summary".to_owned()),
+        content: Some("content".to_owned()),
+        published_at: DateTime::from_timestamp_millis(published_ms),
     }
 }
 
@@ -193,6 +211,148 @@ fn entry_get_missing_is_not_found() {
         Err(AppError::NotFound { resource, .. }) => assert_eq!(resource, "entry"),
         other => panic!("expected NotFound, got {other:?}"),
     }
+}
+
+#[test]
+fn entry_list_paginates_with_limit_and_offset() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    let drafts: Vec<EntryDraft> = (0..5)
+        .map(|i| draft_at(&format!("e{i}"), &format!("https://a/{i}"), 1_000_000 + i))
+        .collect();
+    entry::upsert_entries(&conn, "f1", &drafts).unwrap();
+
+    // newest-first: e4, e3, e2, e1, e0
+    let page1 = entry::list_entries(&conn, None, false, false, 2, 0).unwrap();
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1[0].title, "e4");
+    assert_eq!(page1[1].title, "e3");
+
+    let page2 = entry::list_entries(&conn, None, false, false, 2, 2).unwrap();
+    assert_eq!(page2.len(), 2);
+    assert_eq!(page2[0].title, "e2");
+    assert_eq!(page2[1].title, "e1");
+
+    // last page has the remainder.
+    let page3 = entry::list_entries(&conn, None, false, false, 2, 4).unwrap();
+    assert_eq!(page3.len(), 1);
+    assert_eq!(page3[0].title, "e0");
+
+    // offset past the end is empty.
+    assert!(entry::list_entries(&conn, None, false, false, 2, 6).unwrap().is_empty());
+}
+
+#[test]
+fn toggle_entry_star_returns_new_state() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1")]).unwrap();
+    let id = entry::list_entries(&conn, None, false, false, 50, 0).unwrap()[0].id.clone();
+
+    // Fresh entries are un-starred; toggling flips to starred.
+    let now_starred = entry::toggle_entry_star(&conn, &id).unwrap();
+    assert!(now_starred);
+    assert!(entry::get_entry_by_id(&conn, &id).unwrap().is_starred);
+
+    // Toggling again flips back to un-starred.
+    let now_unstarred = entry::toggle_entry_star(&conn, &id).unwrap();
+    assert!(!now_unstarred);
+    assert!(!entry::get_entry_by_id(&conn, &id).unwrap().is_starred);
+}
+
+#[test]
+fn toggle_entry_star_missing_is_not_found() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    match entry::toggle_entry_star(&conn, "missing") {
+        Err(AppError::NotFound { resource, .. }) => assert_eq!(resource, "entry"),
+        other => panic!("expected NotFound, got {other:?}"),
+    }
+}
+
+#[test]
+fn adjacent_entries_walks_newest_first_list() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    // Three entries with distinct, increasing publish times.
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[
+            draft_at("oldest", "https://a/1", 1_000_000),
+            draft_at("middle", "https://a/2", 2_000_000),
+            draft_at("newest", "https://a/3", 3_000_000),
+        ],
+    )
+    .unwrap();
+
+    // newest-first order: newest, middle, oldest.
+    let items = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    assert_eq!(
+        items.iter().map(|i| i.title.clone()).collect::<Vec<_>>(),
+        vec!["newest", "middle", "oldest"]
+    );
+
+    let newest_id = items[0].id.clone();
+    let middle_id = items[1].id.clone();
+    let oldest_id = items[2].id.clone();
+
+    // newest: no prev (nothing newer), next is middle.
+    let adj = entry::get_adjacent_entries(&conn, &newest_id, None, false, false).unwrap();
+    assert_eq!(adj.prev, None);
+    assert_eq!(adj.next.as_deref(), Some(middle_id.as_str()));
+
+    // middle: prev is newest, next is oldest.
+    let adj = entry::get_adjacent_entries(&conn, &middle_id, None, false, false).unwrap();
+    assert_eq!(adj.prev.as_deref(), Some(newest_id.as_str()));
+    assert_eq!(adj.next.as_deref(), Some(oldest_id.as_str()));
+
+    // oldest: prev is middle, no next (nothing older).
+    let adj = entry::get_adjacent_entries(&conn, &oldest_id, None, false, false).unwrap();
+    assert_eq!(adj.prev.as_deref(), Some(middle_id.as_str()));
+    assert_eq!(adj.next, None);
+}
+
+#[test]
+fn adjacent_entries_respects_unread_filter() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[
+            draft_at("oldest", "https://a/1", 1_000_000),
+            draft_at("middle", "https://a/2", 2_000_000),
+            draft_at("newest", "https://a/3", 3_000_000),
+        ],
+    )
+    .unwrap();
+    let items = entry::list_entries(&conn, None, false, false, 50, 0).unwrap();
+    let middle_id = items[1].id.clone();
+    let newest_id = items[0].id.clone();
+
+    // Mark the middle entry read. Under the unread filter, its neighbours skip
+    // over the read middle entry: newest's next becomes oldest, not middle.
+    entry::mark_entry_read(&conn, &middle_id, true).unwrap();
+    let oldest_id = items[2].id.clone();
+
+    let adj = entry::get_adjacent_entries(&conn, &newest_id, None, true, false).unwrap();
+    assert_eq!(adj.next.as_deref(), Some(oldest_id.as_str()));
+
+    // The read middle entry still positions between the unread newest/oldest:
+    // navigation finds the nearest unread entries on either side.
+    let adj = entry::get_adjacent_entries(&conn, &middle_id, None, true, false).unwrap();
+    assert_eq!(adj.prev.as_deref(), Some(newest_id.as_str()));
+    assert_eq!(adj.next.as_deref(), Some(oldest_id.as_str()));
+}
+
+#[test]
+fn adjacent_entries_unknown_id_returns_none() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    let adj = entry::get_adjacent_entries(&conn, "missing", None, false, false).unwrap();
+    assert_eq!(adj.prev, None);
+    assert_eq!(adj.next, None);
 }
 
 #[test]

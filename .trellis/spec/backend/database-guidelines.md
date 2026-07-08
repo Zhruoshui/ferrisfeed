@@ -13,10 +13,10 @@ on android/ios/linux/macos/windows with FTS5/JSON1/RTREE enabled). Migrations
 are tracked by `PRAGMA user_version` through
 [`rusqlite_migration`](https://crates.io/crates/rusqlite_migration).
 
-This replaced the throwaway JSON-snapshot prototype in `api/reader.rs` (which is
-still kept compiling until P1a rewires the Flutter UI off it). The legacy
-`ReaderSnapshot` approach is gone for new code; do not add new persistence on
-top of it.
+This replaced the throwaway JSON-snapshot prototype in the former `api/reader.rs`
+(which was kept compiling until P2a rewired the Flutter UI onto the persisted
+entry APIs and deleted it). The legacy `ReaderSnapshot` approach is gone; do not
+add new persistence on top of it.
 
 ---
 
@@ -186,12 +186,14 @@ See `error-handling.md` for the full `AppError` contract.
 
 ## Common mistakes
 
-- **Exposing `types::Feed` while `reader.rs` exists.** FRB generates one Dart
-  class per Rust struct *name* and imports every `api/` module into
-  `frb_generated.dart`, so two `Feed` structs produce a duplicate-identifier
-  clash. The persisted feed API reuses `reader::Feed` until P1a removes
-  `reader.rs`; `types::Feed`/`ArticleViewMode`/`FeedDraft` stay
-  un-`#[frb(unignore)]`d.
+- **Avoiding duplicate `Feed` identifiers.** FRB generates one Dart class per
+  Rust struct *name* and imports every `api/` module into `frb_generated.dart`,
+  so two `Feed` structs produce a duplicate-identifier clash. While the legacy
+  `reader.rs` coexisted with the persisted APIs, the feed API reused
+  `reader::Feed` and `types::Feed`/`ArticleViewMode`/`FeedDraft` stayed
+  un-`#[frb(unignore)]`d. P2a removed `reader.rs` and switched the feed API
+  (and `db/repositories/feed.rs`) to `types::Feed`, so all DTOs are now
+  `#[frb(unignore)]`d from `types.rs` with no clash (codegen INFO = 0).
 - **Holding the `Mutex` across an `.await`.** `with_db` locks and unlocks
   synchronously; never `.await` while holding the guard. For HTTP-then-DB flows,
   do the async work first, then `spawn_blocking_with` the DB call.

@@ -384,7 +384,7 @@ mod tests {
 
     // --- dedup_and_insert integration tests (in-memory DB, no network) -------
 
-    use crate::api::reader::{ArticleViewMode, Feed};
+    use crate::api::types::{ArticleViewMode, Feed};
     use rusqlite::Connection;
 
     /// A fresh in-memory database with the MVP schema + FK enforcement, matching
@@ -402,14 +402,20 @@ mod tests {
             id: id.to_owned(),
             title: format!("Feed {id}"),
             source_url: url.to_owned(),
-            site_url: "https://example.com".to_owned(),
-            description: "desc".to_owned(),
+            site_url: Some("https://example.com".to_owned()),
+            description: Some("desc".to_owned()),
+            image_url: None,
+            folder: None,
+            category: None,
+            article_view_mode: ArticleViewMode::default(),
             unread_count: 0,
             article_count: 0,
             last_synced_at: None,
-            article_view_mode: ArticleViewMode::default(),
             last_error: None,
             error_count: 0,
+            etag: None,
+            last_modified: None,
+            created_at: chrono::Utc::now(),
         }
     }
 

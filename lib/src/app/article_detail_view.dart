@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:rss_reader/src/app/reader_controller.dart';
-import 'package:rss_reader/src/rust/api/reader.dart';
+import 'package:rss_reader/src/rust/api/types.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -43,14 +43,14 @@ Future<bool> openInSystemBrowser(String url) async {
 class ArticleDetailBody extends StatelessWidget {
   const ArticleDetailBody({
     super.key,
-    required this.article,
+    required this.entry,
     required this.effectiveMode,
     required this.feedTitle,
     required this.header,
     required this.controller,
   });
 
-  final Article article;
+  final Entry entry;
   final ArticleViewMode effectiveMode;
   final String feedTitle;
   final ReaderController controller;
@@ -63,10 +63,10 @@ class ArticleDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (effectiveMode == ArticleViewMode.webpage) {
-      return _WebpageArticleView(article: article);
+      return _WebpageArticleView(entry: entry);
     }
     return _RenderedArticleView(
-      article: article,
+      entry: entry,
       header: header,
       controller: controller,
     );
@@ -75,18 +75,18 @@ class ArticleDetailBody extends StatelessWidget {
 
 class _RenderedArticleView extends StatelessWidget {
   const _RenderedArticleView({
-    required this.article,
+    required this.entry,
     required this.header,
     required this.controller,
   });
 
-  final Article article;
+  final Entry entry;
   final Widget header;
   final ReaderController controller;
 
   @override
   Widget build(BuildContext context) {
-    final html = _articleHtml(article);
+    final html = _entryHtml(entry);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final baseFontSize = theme.textTheme.bodyLarge?.fontSize ?? 16.0;
@@ -290,18 +290,18 @@ class _ImageErrorView extends StatelessWidget {
 }
 
 /// Picks the richest available HTML payload for rendered display.
-String _articleHtml(Article article) {
-  final content = article.content.trim();
+String _entryHtml(Entry entry) {
+  final content = entry.content?.trim() ?? '';
   if (content.isNotEmpty) {
     return content;
   }
-  return article.summary.trim();
+  return entry.summary?.trim() ?? '';
 }
 
 class _WebpageArticleView extends StatefulWidget {
-  const _WebpageArticleView({required this.article});
+  const _WebpageArticleView({required this.entry});
 
-  final Article article;
+  final Entry entry;
 
   @override
   State<_WebpageArticleView> createState() => _WebpageArticleViewState();
@@ -320,8 +320,8 @@ class _WebpageArticleViewState extends State<_WebpageArticleView> {
   @override
   void didUpdateWidget(_WebpageArticleView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.article.url != widget.article.url) {
-      final uri = Uri.tryParse(widget.article.url);
+    if (oldWidget.entry.url != widget.entry.url) {
+      final uri = Uri.tryParse(widget.entry.url);
       if (uri != null && isSafeExternalUrl(uri)) {
         _controller?.loadRequest(uri);
       }
@@ -332,7 +332,7 @@ class _WebpageArticleViewState extends State<_WebpageArticleView> {
     if (!isInAppWebviewSupported()) {
       return;
     }
-    final uri = Uri.tryParse(widget.article.url);
+    final uri = Uri.tryParse(widget.entry.url);
     if (uri == null || !isSafeExternalUrl(uri)) {
       return;
     }
@@ -367,7 +367,7 @@ class _WebpageArticleViewState extends State<_WebpageArticleView> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (controller == null) {
-      return _WebpageFallback(article: widget.article);
+      return _WebpageFallback(entry: widget.entry);
     }
     return Stack(
       children: [
@@ -387,9 +387,9 @@ class _WebpageArticleViewState extends State<_WebpageArticleView> {
 /// Shown when the in-app webview is unavailable (web/desktop) or the article
 /// URL cannot be parsed. Offers a system-browser escape hatch.
 class _WebpageFallback extends StatelessWidget {
-  const _WebpageFallback({required this.article});
+  const _WebpageFallback({required this.entry});
 
-  final Article article;
+  final Entry entry;
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +415,7 @@ class _WebpageFallback extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               SelectableText(
-                article.url,
+                entry.url,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.primary,
@@ -423,7 +423,7 @@ class _WebpageFallback extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: () => openInSystemBrowser(article.url),
+                onPressed: () => openInSystemBrowser(entry.url),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Open in browser'),
               ),

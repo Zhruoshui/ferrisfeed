@@ -22,8 +22,7 @@ pub(crate) mod sync;
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::api::reader::{ArticleViewMode, Feed};
-use crate::api::types::FeedCandidate;
+use crate::api::types::{ArticleViewMode, Feed, FeedCandidate};
 use crate::api::AppError;
 use crate::db::connection::with_db;
 use crate::db::repositories;
@@ -72,19 +71,26 @@ pub(crate) async fn subscribe_feed_impl(url: &str) -> Result<Feed, AppError> {
 
     let title = normalize::normalize_feed_title(&parsed.title, parsed.site_url.as_deref(), url);
     let site_url = normalize::normalize_site_url(parsed.site_url.as_deref(), url);
+    let now = Utc::now();
 
     let feed = Feed {
         id: Uuid::new_v4().to_string(),
         title,
         source_url: url.to_string(),
-        site_url: site_url.unwrap_or_default(),
-        description: parsed.description.unwrap_or_default(),
+        site_url,
+        description: parsed.description,
+        image_url: None,
+        folder: None,
+        category: None,
+        article_view_mode: ArticleViewMode::default(),
         unread_count: 0,
         article_count: 0,
-        last_synced_at: Some(Utc::now().to_rfc3339()),
-        article_view_mode: ArticleViewMode::default(),
+        last_synced_at: Some(now),
         last_error: None,
         error_count: 0,
+        etag: None,
+        last_modified: None,
+        created_at: now,
     };
 
     // The DB touch is sync and short (a single lookup + upsert), so it runs

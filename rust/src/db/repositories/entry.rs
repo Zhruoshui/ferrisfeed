@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Row};
 use uuid::Uuid;
 
-use crate::api::types::{Entry, EntryDraft, EntryListItem};
+use crate::api::types::{AdjacentEntries, Entry, EntryDraft, EntryListItem};
 use crate::api::AppError;
 use crate::db::repositories;
 
@@ -119,13 +119,81 @@ pub fn mark_entry_read(conn: &Connection, id: &str, is_read: bool) -> Result<(),
     Ok(())
 }
 
-pub fn toggle_entry_star(conn: &Connection, id: &str) -> Result<(), AppError> {
+pub fn toggle_entry_star(conn: &Connection, id: &str) -> Result<bool, AppError> {
     let affected =
         conn.execute("UPDATE entries SET is_starred = 1 - is_starred WHERE id = ?1", params![id])?;
     if affected == 0 {
         return Err(AppError::not_found("entry", id));
     }
-    Ok(())
+    let is_starred: bool = conn.query_row(
+        "SELECT is_starred FROM entries WHERE id = ?1",
+        params![id],
+        |row| row.get::<_, i64>(0).map(|v| v != 0),
+    )?;
+    Ok(is_starred)
+}
+
+/// Returns the previous (newer) and next (older) entry ids relative to `id`,
+/// within the same filter context. The entry list is ordered by
+/// `published_at DESC, id DESC` (newest-first), so `prev` is the neighbour
+/// with a greater `(published_at, id)` tuple and `next` is the neighbour with
+/// a smaller one. Either is `None` at the ends of the list or when `id` itself
+/// is not found / filtered out.
+pub fn get_adjacent_entries(
+    conn: &Connection,
+    id: &str,
+    feed_id: Option<&str>,
+    unread_only: bool,
+    starred_only: bool,
+) -> Result<AdjacentEntries, AppError> {
+    // Need the current entry's published_at to compare tuples.
+    let current_ms: Option<i64> = conn
+        .query_row(
+            "SELECT published_at FROM entries WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, i64>(0),
+        )
+        .ok();
+    let Some(current_ms) = current_ms else {
+        return Ok(AdjacentEntries {
+            prev: None,
+            next: None,
+        });
+    };
+
+    // prev = newest-first neighbour above the current row (newer): strictly
+    // greater (published_at, id) tuple.
+    let prev = conn
+        .query_row(
+            "SELECT e.id FROM entries e
+             WHERE (?1 IS NULL OR e.feed_id = ?1)
+               AND (?2 = 0 OR e.is_read = 0)
+               AND (?3 = 0 OR e.is_starred = 1)
+               AND (e.published_at > ?4 OR (e.published_at = ?4 AND e.id > ?5))
+             ORDER BY e.published_at ASC, e.id ASC
+             LIMIT 1",
+            params![feed_id, unread_only as i64, starred_only as i64, current_ms, id],
+            |row| row.get::<_, String>(0),
+        )
+        .ok();
+
+    // next = newest-first neighbour below the current row (older): strictly
+    // smaller (published_at, id) tuple.
+    let next = conn
+        .query_row(
+            "SELECT e.id FROM entries e
+             WHERE (?1 IS NULL OR e.feed_id = ?1)
+               AND (?2 = 0 OR e.is_read = 0)
+               AND (?3 = 0 OR e.is_starred = 1)
+               AND (e.published_at < ?4 OR (e.published_at = ?4 AND e.id < ?5))
+             ORDER BY e.published_at DESC, e.id DESC
+             LIMIT 1",
+            params![feed_id, unread_only as i64, starred_only as i64, current_ms, id],
+            |row| row.get::<_, String>(0),
+        )
+        .ok();
+
+    Ok(AdjacentEntries { prev, next })
 }
 
 /// Marks all entries as read, optionally scoped to one feed, and recomputes
