@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
 import 'package:rss_reader/src/rust/api/error.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 
@@ -79,6 +82,11 @@ class _ReaderHomeState extends State<ReaderHome> {
                 : null,
             title: const Text('Rust RSS Reader'),
             actions: [
+              IconButton(
+                tooltip: 'Search articles',
+                onPressed: controller.isWorking ? null : _showSearch,
+                icon: const Icon(Icons.search),
+              ),
               IconButton(
                 tooltip: 'Refresh feeds',
                 onPressed: controller.isWorking ? null : _refreshFeeds,
@@ -377,6 +385,19 @@ class _ReaderHomeState extends State<ReaderHome> {
         );
       },
     );
+  }
+
+  Future<void> _showSearch() async {
+    final selectedId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (context) => _SearchPage(controller: widget.controller),
+      ),
+    );
+    if (!mounted || selectedId == null) {
+      return;
+    }
+    final isNarrow = MediaQuery.sizeOf(context).width < 860;
+    _openArticle(selectedId, pushRoute: isNarrow);
   }
 
   Future<void> _refreshFeeds() async {
@@ -1515,6 +1536,202 @@ class _SyncProgressBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Full-screen search page with a debounced text field and results list.
+///
+/// Searches across all feeds via `rust_entry.searchEntries`. Results reuse the
+/// same `_ArticleListTile` rendering as the main article list. Selecting a
+/// result pops the page with the entry id so the caller can open the detail
+/// view.
+class _SearchPage extends StatefulWidget {
+  const _SearchPage({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  State<_SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<_SearchPage> {
+  static const _searchLimit = 50;
+  static const _debounceDelay = Duration(milliseconds: 300);
+
+  final _textController = TextEditingController();
+  Timer? _debounce;
+  List<EntryListItem> _results = const [];
+  bool _isLoading = false;
+  bool _hasSearched = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onQueryChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged() {
+    _debounce?.cancel();
+    final query = _textController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _results = const [];
+        _isLoading = false;
+        _hasSearched = false;
+        _error = null;
+      });
+      return;
+    }
+    // Rebuild so the clear button appears immediately.
+    setState(() {});
+    _debounce = Timer(_debounceDelay, () => _runSearch(query));
+  }
+
+  Future<void> _runSearch(String query) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final results = await rust_entry.searchEntries(
+        query: query,
+        limit: _searchLimit,
+      );
+      if (mounted) {
+        setState(() {
+          _results = results;
+          _isLoading = false;
+          _hasSearched = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = _describeError(e);
+          _hasSearched = true;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: TextField(
+          controller: _textController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Search articles...',
+            border: InputBorder.none,
+          ),
+          textInputAction: TextInputAction.search,
+          onSubmitted: (value) {
+            _debounce?.cancel();
+            _runSearch(value.trim());
+          },
+        ),
+        actions: [
+          if (_textController.text.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear',
+              onPressed: () {
+                _textController.clear();
+                _onQueryChanged();
+              },
+              icon: const Icon(Icons.clear),
+            ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return _SearchMessageState(
+        icon: Icons.error_outline,
+        message: _error!,
+        isError: true,
+      );
+    }
+    if (!_hasSearched) {
+      return const _SearchMessageState(
+        icon: Icons.search,
+        message: 'Search across all articles',
+      );
+    }
+    if (_results.isEmpty) {
+      return const _SearchMessageState(
+        icon: Icons.search_off,
+        message: 'No results found',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+      itemCount: _results.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final article = _results[index];
+        return _ArticleListTile(
+          article: article,
+          selected: false,
+          onTap: () => Navigator.of(context).pop(article.id),
+        );
+      },
+    );
+  }
+}
+
+/// Centered icon + message used for the search page's empty / error / idle
+/// states.
+class _SearchMessageState extends StatelessWidget {
+  const _SearchMessageState({
+    required this.icon,
+    required this.message,
+    this.isError = false,
+  });
+
+  final IconData icon;
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: isError ? theme.colorScheme.error : theme.colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

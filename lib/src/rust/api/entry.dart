@@ -67,6 +67,21 @@ Future<int> upsertEntries({
   drafts: drafts,
 );
 
+/// Searches entries by `LIKE %query%` on title + summary + content (parity
+/// with Livo's `entry-repository.searchEntries`). Case-insensitive. Optional
+/// `feed_id` scopes the search to one feed; `None` searches all feeds.
+/// Results are newest-first and capped by `limit`. An empty/whitespace query
+/// returns an empty list (no error).
+Future<List<EntryListItem>> searchEntries({
+  required String query,
+  String? feedId,
+  required int limit,
+}) => RustLib.instance.api.crateApiEntrySearchEntries(
+  query: query,
+  feedId: feedId,
+  limit: limit,
+);
+
 /// Marks all entries as read, optionally scoped to one feed.
 Future<void> markAllRead({String? feedId}) =>
     RustLib.instance.api.crateApiEntryMarkAllRead(feedId: feedId);

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1689137338;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -611493497;
 
 // Section: executor
 
@@ -697,6 +697,42 @@ fn wire__crate__api__feed__refresh_feed_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__entry__search_entries_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_entries",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_query = <String>::sse_decode(&mut deserializer);
+            let api_feed_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_limit = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::AppError>((move || {
+                    let output_ok =
+                        crate::api::entry::search_entries(api_query, api_feed_id, api_limit)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -1528,14 +1564,15 @@ fn pde_ffi_dispatcher_primary_impl(
         17 => wire__crate__api__app__ping_stream_impl(port, ptr, rust_vec_len, data_len),
         18 => wire__crate__api__feed__refresh_all_feeds_impl(port, ptr, rust_vec_len, data_len),
         19 => wire__crate__api__feed__refresh_feed_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__feed__set_feed_view_mode_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__feed__subscribe_feed_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__feed__sync_feeds_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__entry__toggle_entry_star_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__feed__update_feed_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__entry__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__entry__upsert_entries_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__feed__upsert_feed_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__entry__search_entries_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__feed__set_feed_view_mode_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__feed__subscribe_feed_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__feed__sync_feeds_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__entry__toggle_entry_star_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__feed__update_feed_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__entry__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__entry__upsert_entries_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__feed__upsert_feed_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

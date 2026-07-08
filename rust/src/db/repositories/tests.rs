@@ -418,6 +418,130 @@ fn migrations_are_idempotent() {
 }
 
 #[test]
+fn search_entries_finds_by_title_summary_and_content() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[
+            EntryDraft {
+                title: "Rust Programming".to_owned(),
+                url: "https://a/1".to_owned(),
+                author: None,
+                summary: Some("A summary about coding".to_owned()),
+                content: Some("Full body text here".to_owned()),
+                published_at: Some(Utc::now()),
+            },
+            EntryDraft {
+                title: "Unrelated".to_owned(),
+                url: "https://a/2".to_owned(),
+                author: None,
+                summary: Some("Nothing relevant".to_owned()),
+                content: Some("No keywords here".to_owned()),
+                published_at: Some(Utc::now()),
+            },
+            EntryDraft {
+                title: "Another Post".to_owned(),
+                url: "https://a/3".to_owned(),
+                author: None,
+                summary: Some("Mentions Rust briefly".to_owned()),
+                content: Some("Some content".to_owned()),
+                published_at: Some(Utc::now()),
+            },
+        ],
+    )
+    .unwrap();
+
+    // Match by title.
+    let results = entry::search_entries(&conn, "Rust", None, 50).unwrap();
+    assert_eq!(results.len(), 2);
+
+    // Match by summary ("coding").
+    let results = entry::search_entries(&conn, "coding", None, 50).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].title, "Rust Programming");
+
+    // Match by content ("body").
+    let results = entry::search_entries(&conn, "body", None, 50).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].title, "Rust Programming");
+}
+
+#[test]
+fn search_entries_is_case_insensitive() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[draft("Flutter Development Guide", "https://a/1")],
+    )
+    .unwrap();
+
+    let upper = entry::search_entries(&conn, "FLUTTER", None, 50).unwrap();
+    assert_eq!(upper.len(), 1);
+    let lower = entry::search_entries(&conn, "flutter", None, 50).unwrap();
+    assert_eq!(lower.len(), 1);
+    let mixed = entry::search_entries(&conn, "fLuTtEr", None, 50).unwrap();
+    assert_eq!(mixed.len(), 1);
+}
+
+#[test]
+fn search_entries_scopes_to_feed() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    feed::upsert_feed(&conn, &sample_feed("f2", "https://b/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("Shared keyword", "https://a/1")]).unwrap();
+    entry::upsert_entries(&conn, "f2", &[draft("Shared keyword too", "https://b/1")]).unwrap();
+
+    // All feeds: both match.
+    let all = entry::search_entries(&conn, "Shared", None, 50).unwrap();
+    assert_eq!(all.len(), 2);
+
+    // Scoped to f1: only one.
+    let scoped = entry::search_entries(&conn, "Shared", Some("f1"), 50).unwrap();
+    assert_eq!(scoped.len(), 1);
+    assert_eq!(scoped[0].feed_id, "f1");
+}
+
+#[test]
+fn search_entries_empty_query_returns_empty() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("Some title", "https://a/1")]).unwrap();
+
+    assert!(entry::search_entries(&conn, "", None, 50).unwrap().is_empty());
+    assert!(entry::search_entries(&conn, "   ", None, 50).unwrap().is_empty());
+}
+
+#[test]
+fn search_entries_respects_limit() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    let drafts: Vec<EntryDraft> = (0..5)
+        .map(|i| draft_at(&format!("keyword-{i}"), &format!("https://a/{i}"), 1_000_000 + i))
+        .collect();
+    entry::upsert_entries(&conn, "f1", &drafts).unwrap();
+
+    let results = entry::search_entries(&conn, "keyword", None, 3).unwrap();
+    assert_eq!(results.len(), 3);
+    // newest-first: keyword-4, keyword-3, keyword-2
+    assert_eq!(results[0].title, "keyword-4");
+    assert_eq!(results[1].title, "keyword-3");
+    assert_eq!(results[2].title, "keyword-2");
+}
+
+#[test]
+fn search_entries_no_match_returns_empty() {
+    let conn = test_db();
+    feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
+    entry::upsert_entries(&conn, "f1", &[draft("Hello World", "https://a/1")]).unwrap();
+
+    assert!(entry::search_entries(&conn, "nonexistent", None, 50).unwrap().is_empty());
+}
+
+#[test]
 fn init_db_then_with_db_round_trips() {
     // Exercises the real init path (file-based DB, WAL/FK pragmas, migrations)
     // and the global `with_db` borrow — the path Dart hits via `initDatabase`.

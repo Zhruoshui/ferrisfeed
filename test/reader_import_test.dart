@@ -4,6 +4,7 @@ import 'package:rss_reader/main.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
 import 'package:rss_reader/src/rust/api/error.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 import 'package:rss_reader/src/rust/frb_generated.dart';
@@ -195,6 +196,72 @@ void main() {
     expect(controller.articles.first.id, starredId);
   });
 
+  // --- Search (P2b) ---------------------------------------------------------
+
+  test('searchEntries finds entries by title, summary, and content', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
+    await controller.load();
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId,
+        title: 'Rust Programming',
+        url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 7, 8, 10),
+        summary: 'A summary about coding',
+        content: 'Full body text');
+    mockApi.seedEntry(feedId,
+        title: 'Unrelated',
+        url: 'https://a/2',
+        publishedAt: DateTime.utc(2026, 7, 8, 11),
+        summary: 'Nothing here',
+        content: 'No keywords');
+
+    final byTitle =
+        await rust_entry.searchEntries(query: 'Rust', limit: 50);
+    expect(byTitle.length, 1);
+    expect(byTitle.first.title, 'Rust Programming');
+
+    final bySummary =
+        await rust_entry.searchEntries(query: 'coding', limit: 50);
+    expect(bySummary.length, 1);
+
+    final byContent =
+        await rust_entry.searchEntries(query: 'body', limit: 50);
+    expect(byContent.length, 1);
+  });
+
+  test('searchEntries is case-insensitive', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
+    await controller.load();
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId,
+        title: 'Flutter Guide',
+        url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 7, 8, 10));
+
+    expect(
+        (await rust_entry.searchEntries(query: 'FLUTTER', limit: 50)).length,
+        1);
+    expect(
+        (await rust_entry.searchEntries(query: 'flutter', limit: 50)).length,
+        1);
+  });
+
+  test('searchEntries empty query returns no results', () async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
+    await controller.load();
+    await controller.subscribeFeed('https://example.com/feed.xml');
+    final feedId = controller.feeds.first.id;
+    mockApi.seedEntry(feedId,
+        title: 'Hello',
+        url: 'https://a/1',
+        publishedAt: DateTime.utc(2026, 7, 8, 10));
+
+    expect((await rust_entry.searchEntries(query: '', limit: 50)).length, 0);
+    expect((await rust_entry.searchEntries(query: '   ', limit: 50)).length, 0);
+  });
+
   // --- Settings -------------------------------------------------------------
 
   test('theme mode and font scale persist across reload', () async {
@@ -265,6 +332,7 @@ class _MockRustApi implements RustLibApi {
     bool isRead = false,
     bool isStarred = false,
     String? content,
+    String? summary,
   }) {
     final id = 'entry-${++_entryCounter}';
     final now = DateTime.now().toUtc();
@@ -274,7 +342,7 @@ class _MockRustApi implements RustLibApi {
       title: title,
       url: url,
       content: content,
-      summary: null,
+      summary: summary,
       author: null,
       imageUrl: null,
       publishedAt: publishedAt,
@@ -420,6 +488,39 @@ class _MockRustApi implements RustLibApi {
       throw AppError_NotFound(resource: 'entry', id: entryId);
     }
     return entry;
+  }
+
+  @override
+  Future<List<EntryListItem>> crateApiEntrySearchEntries({
+    required String query,
+    String? feedId,
+    required int limit,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+    final feedTitles = {for (final f in _dbFeeds) f.id: f.title};
+    final lowerQuery = trimmed.toLowerCase();
+    var matches = _entries.where((e) {
+      final feedMatches = feedId == null || e.feedId == feedId;
+      if (!feedMatches) return false;
+      final inTitle = e.title.toLowerCase().contains(lowerQuery);
+      final inSummary =
+          e.summary?.toLowerCase().contains(lowerQuery) ?? false;
+      final inContent =
+          e.content?.toLowerCase().contains(lowerQuery) ?? false;
+      return inTitle || inSummary || inContent;
+    }).toList()
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    return matches.take(limit).map((e) => EntryListItem(
+          id: e.id,
+          feedId: e.feedId,
+          feedTitle: feedTitles[e.feedId] ?? 'Unknown Feed',
+          title: e.title,
+          summary: e.summary ?? '',
+          publishedAt: e.publishedAt,
+          isRead: e.isRead,
+          isStarred: e.isStarred,
+        )).toList();
   }
 
   @override

@@ -80,6 +80,22 @@ pub fn upsert_entries(feed_id: String, drafts: Vec<EntryDraft>) -> Result<i32, A
     with_db(|conn| repositories::entry::upsert_entries(conn, &feed_id, &drafts))
 }
 
+/// Searches entries by `LIKE %query%` on title + summary + content (parity
+/// with Livo's `entry-repository.searchEntries`). Case-insensitive. Optional
+/// `feed_id` scopes the search to one feed; `None` searches all feeds.
+/// Results are newest-first and capped by `limit`. An empty/whitespace query
+/// returns an empty list (no error).
+#[flutter_rust_bridge::frb]
+pub fn search_entries(
+    query: String,
+    feed_id: Option<String>,
+    limit: u32,
+) -> Result<Vec<EntryListItem>, AppError> {
+    with_db(|conn| {
+        repositories::entry::search_entries(conn, &query, feed_id.as_deref(), limit as i64)
+    })
+}
+
 /// Marks all entries as read, optionally scoped to one feed.
 #[flutter_rust_bridge::frb]
 pub fn mark_all_read(feed_id: Option<String>) -> Result<(), AppError> {

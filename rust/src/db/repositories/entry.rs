@@ -196,6 +196,39 @@ pub fn get_adjacent_entries(
     Ok(AdjacentEntries { prev, next })
 }
 
+/// Searches entries by `LIKE %query%` on `title` + `summary` + `content`
+/// (parity with Livo's `entry-repository.searchEntries`). Case-insensitive
+/// via `LOWER()` on both sides (SQLite `LIKE` is ASCII-case-insensitive by
+/// default; `LOWER()` makes the folding explicit and consistent). Optional
+/// `feed_id` scopes the search to one feed. Results are newest-first. An
+/// empty/whitespace query returns an empty list (no error).
+pub fn search_entries(
+    conn: &Connection,
+    query: &str,
+    feed_id: Option<&str>,
+    limit: i64,
+) -> Result<Vec<EntryListItem>, AppError> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let pattern = format!("%{trimmed}%");
+    let mut stmt = conn.prepare(
+        "SELECT e.id, e.feed_id, f.title AS feed_title, e.title, e.summary,
+                e.published_at, e.is_read, e.is_starred
+         FROM entries e
+         LEFT JOIN feeds f ON f.id = e.feed_id
+         WHERE (LOWER(e.title) LIKE LOWER(?1)
+                OR LOWER(e.summary) LIKE LOWER(?1)
+                OR LOWER(e.content) LIKE LOWER(?1))
+           AND (?2 IS NULL OR e.feed_id = ?2)
+         ORDER BY e.published_at DESC, e.id DESC
+         LIMIT ?3",
+    )?;
+    let rows = stmt.query_map(params![pattern, feed_id, limit], entry_list_item_from_row)?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
 /// Marks all entries as read, optionally scoped to one feed, and recomputes
 /// the affected feeds' cached counts.
 pub fn mark_all_read(conn: &Connection, feed_id: Option<&str>) -> Result<(), AppError> {
