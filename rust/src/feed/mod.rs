@@ -1,10 +1,10 @@
 //! Feed fetching, parsing, discovery, and normalization.
 //!
 //! This module is NOT exposed to flutter_rust_bridge (only `crate::api` is).
-//! It owns the `reqwest` HTTP client, the `feed-rs` parser, the `scraper`
-//! discovery helper, and the shared tokio runtime. The API layer in
-//! `api/feed.rs` spawns async work onto the runtime (see `runtime::handle`)
-//! and delegates here.
+//! It owns the `reqwest` HTTP client, the `feed-rs` parser, and the `scraper`
+//! discovery helper. The API layer in `api/feed.rs` awaits the `*_impl`
+//! functions here directly on FRB's tokio runtime (see
+//! `directory-structure.md` gotcha) and delegates persistence to `db`.
 //!
 //! Layering: `api/feed.rs` -> `feed::{discover_feeds_impl, subscribe_feed_impl}`
 //! -> `feed::{fetch,parse,discover,normalize}` + `db::repositories::feed`.
@@ -15,7 +15,6 @@ pub(crate) mod discover;
 pub(crate) mod fetch;
 pub(crate) mod normalize;
 pub(crate) mod parse;
-pub(crate) mod runtime;
 pub(crate) mod simhash;
 pub(crate) mod sync;
 

@@ -33,7 +33,7 @@ feed-rs = { version = "2.4", features = ["sanitize"] }
 # iOS Keychain) — no OpenSSL to cross-compile. HTTP fetching stays fully
 # decoupled from feed-rs (fetch bytes -> hand to feed-rs).
 reqwest = { version = "0.13", features = ["gzip", "brotli"] }
-# tokio runtime for async reqwest; FRB async fns spawn onto this runtime.
+# tokio: powers `#[tokio::test]` async tests in feed/fetch + feed/sync.
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # scraper (html5ever + selectors) for feed auto-discovery via <link rel=alternate>.
 scraper = "0.22"

@@ -73,21 +73,19 @@ pub fn set_feed_view_mode(feed_id: String, view_mode: ArticleViewMode) -> Result
 
 // --- Network-backed subscription (P1a) -------------------------------------
 //
-// These are `async fn` (never `#[frb(sync)]`): the body runs on a tokio runtime
-// spawned via `feed::runtime::handle()` so network I/O never blocks the FRB
-// worker pool or the Flutter UI isolate. `feed-rs`/`reqwest`/`scraper` types
-// stay internal to the `feed/` module — only `Feed`/`FeedCandidate`/`AppError`
-// cross the FRB boundary.
+// These are `async fn` (never `#[frb(sync)]`): FRB v2.12's `DefaultHandler`
+// already hosts a multi-threaded tokio runtime with an I/O driver + timer, so
+// `reqwest`/`feed-rs` awaits work directly inside these `async fn`s without a
+// second runtime (see `directory-structure.md` gotcha). `feed-rs`/`reqwest`/
+// `scraper` types stay internal to the `feed/` module — only `Feed`/
+// `FeedCandidate`/`AppError` cross the FRB boundary.
 
 /// Discovers feed URLs at a page. If `url` already serves a feed, returns it
 /// as a single candidate; otherwise scans the HTML for
 /// `<link rel="alternate" type="application/rss+xml|atom+xml">`.
 #[flutter_rust_bridge::frb]
 pub async fn discover_feeds(url: String) -> Result<Vec<FeedCandidate>, AppError> {
-    crate::feed::runtime::handle()
-        .spawn(async move { crate::feed::discover_feeds_impl(&url).await })
-        .await
-        .map_err(|e| AppError::Io(e.to_string()))?
+    crate::feed::discover_feeds_impl(&url).await
 }
 
 /// Subscribes to a feed by URL: fetch + parse + normalize + persist (metadata
@@ -95,19 +93,16 @@ pub async fn discover_feeds(url: String) -> Result<Vec<FeedCandidate>, AppError>
 /// existing subscription with the same source URL returns its record.
 #[flutter_rust_bridge::frb]
 pub async fn subscribe_feed(url: String) -> Result<Feed, AppError> {
-    crate::feed::runtime::handle()
-        .spawn(async move { crate::feed::subscribe_feed_impl(&url).await })
-        .await
-        .map_err(|e| AppError::Io(e.to_string()))?
+    crate::feed::subscribe_feed_impl(&url).await
 }
 
 // --- P1b: feed sync & refresh with progress streaming ----------------------
 //
-// These async fns await the sync orchestrator DIRECTLY (not via
-// `feed::runtime::handle().spawn`). FRB v2.12's `DefaultHandler` already hosts
-// a multi-threaded tokio runtime with an I/O driver + timer, so `reqwest`
-// awaits work inside these `async fn`s without a second runtime (see
-// `directory-structure.md` gotcha). The `StreamSink<SyncProgress>` parameter
+// These async fns await the sync orchestrator DIRECTLY. FRB v2.12's
+// `DefaultHandler` already hosts a multi-threaded tokio runtime with an I/O
+// driver + timer, so `reqwest` awaits work inside these `async fn`s without a
+// second runtime (see `directory-structure.md` gotcha). The
+// `StreamSink<SyncProgress>` parameter
 // maps to a Dart `Stream<SyncProgress>`; because FRB stream-sink functions can
 // only return `()` / `Result<(), E>`, the cumulative sync totals ride on the
 // final `SyncProgress` event (`done = true`) rather than a `SyncReport` return.

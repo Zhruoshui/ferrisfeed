@@ -126,7 +126,7 @@ fn map_entry(e: feed_rs::model::Entry, base_url: &str) -> ParsedEntry {
     let content_body = e.content.as_ref().and_then(|c| c.body.clone());
     let summary_text = e.summary.map(|t| t.content);
     let content = content_body.clone().or_else(|| summary_text.clone());
-    let summary = summary_text.or_else(|| content_body);
+    let summary = summary_text.or(content_body);
 
     let published_at = e.published.or(e.updated);
 
@@ -152,7 +152,7 @@ fn extract_media(media_objs: &[feed_rs::model::MediaObject], base_url: &str) -> 
         for c in &obj.content {
             if let Some(u) = &c.url {
                 items.push(MediaItem {
-                    url: resolve_url(&u.to_string(), base_url),
+                    url: resolve_url(u.as_ref(), base_url),
                     mime_type: c.content_type.as_ref().map(|t| t.to_string()),
                     kind: None,
                 });
