@@ -10,6 +10,7 @@ import 'api/app.dart';
 import 'api/entry.dart';
 import 'api/error.dart';
 import 'api/feed.dart';
+import 'api/opml.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -94,6 +95,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  ImportReport dco_decode_import_report(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -215,6 +219,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  ImportReport sse_decode_import_report(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -354,6 +361,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_import_report(ImportReport self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);

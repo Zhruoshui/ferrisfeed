@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Previous/next entry ids within a filter context, used for prev/next
 /// navigation in the reading UI. The list is ordered by `published_at DESC`
@@ -371,6 +371,47 @@ class FeedDraft {
           sourceUrl == other.sourceUrl &&
           siteUrl == other.siteUrl &&
           description == other.description;
+}
+
+/// Tally of an OPML import run. Returned by `api::opml::import_opml`.
+///
+/// `imported` counts newly subscribed feeds; `skipped` counts feeds that were
+/// already subscribed (idempotent on `source_url`); `failed` counts feeds whose
+/// subscription failed (network/parse error). `failed_urls` lists every URL
+/// that could not be subscribed.
+class ImportReport {
+  final int total;
+  final int imported;
+  final int failed;
+  final int skipped;
+  final List<String> failedUrls;
+
+  const ImportReport({
+    required this.total,
+    required this.imported,
+    required this.failed,
+    required this.skipped,
+    required this.failedUrls,
+  });
+
+  @override
+  int get hashCode =>
+      total.hashCode ^
+      imported.hashCode ^
+      failed.hashCode ^
+      skipped.hashCode ^
+      failedUrls.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImportReport &&
+          runtimeType == other.runtimeType &&
+          total == other.total &&
+          imported == other.imported &&
+          failed == other.failed &&
+          skipped == other.skipped &&
+          failedUrls == other.failedUrls;
 }
 
 /// Progress payload pushed via `StreamSink` during a feed refresh.

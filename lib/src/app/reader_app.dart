@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
@@ -101,6 +105,17 @@ class _ReaderHomeState extends State<ReaderHome> {
                 tooltip: 'More actions',
                 onSelected: (action) => _handleMenuAction(action, controller),
                 itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.importOpml,
+                    enabled: !controller.isWorking,
+                    child: const Text('Import OPML'),
+                  ),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.exportOpml,
+                    enabled: !controller.isWorking,
+                    child: const Text('Export OPML'),
+                  ),
+                  const PopupMenuDivider(),
                   PopupMenuItem(
                     value: _ReaderMenuAction.removeFeed,
                     enabled:
@@ -419,11 +434,90 @@ class _ReaderHomeState extends State<ReaderHome> {
     }
   }
 
+  Future<void> _importOpml() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['opml', 'xml'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final file = result.files.first;
+    String xml;
+    if (file.bytes != null) {
+      // Decode raw bytes as UTF-8 (OPML files are UTF-8). `allowMalformed`
+      // replaces any invalid byte with U+FFFD instead of throwing, so a
+      // slightly malformed file still imports. `String.fromCharCodes` would
+      // treat each byte as a separate code point and corrupt multi-byte
+      // sequences (e.g. non-ASCII feed titles).
+      xml = utf8.decode(file.bytes!, allowMalformed: true);
+    } else if (file.path != null) {
+      xml = await File(file.path!).readAsString();
+    } else {
+      _showMessage('Could not read the selected file.', isError: true);
+      return;
+    }
+
+    final summary = await _runGuardedResult(
+      () => widget.controller.importOpml(xml),
+    );
+    if (!mounted || summary == null) {
+      return;
+    }
+    final parts = <String>[
+      '${summary.imported} imported',
+      if (summary.skipped > 0) '${summary.skipped} skipped',
+      if (summary.failed > 0) '${summary.failed} failed',
+    ];
+    _showMessage('OPML import: ${parts.join(', ')}.');
+  }
+
+  Future<void> _exportOpml() async {
+    final xml = await _runGuardedResult(widget.controller.exportOpml);
+    if (!mounted || xml == null) {
+      return;
+    }
+
+    // On desktop (Windows/macOS/Linux) use the native save dialog. On mobile
+    // fall back to the app documents directory.
+    String? savedPath;
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export OPML',
+        fileName: 'subscriptions.opml',
+        type: FileType.custom,
+        allowedExtensions: ['opml'],
+      );
+      if (path == null) {
+        return; // user cancelled
+      }
+      await File(path).writeAsString(xml);
+      savedPath = path;
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      final path = '${dir.path}/subscriptions.opml';
+      await File(path).writeAsString(xml);
+      savedPath = path;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    _showMessage('OPML exported to $savedPath');
+  }
+
   Future<void> _handleMenuAction(
     _ReaderMenuAction action,
     ReaderController controller,
   ) async {
     switch (action) {
+      case _ReaderMenuAction.importOpml:
+        await _importOpml();
+        return;
+      case _ReaderMenuAction.exportOpml:
+        await _exportOpml();
+        return;
       case _ReaderMenuAction.removeFeed:
         final feed = controller.selectedFeed;
         if (feed == null) {
@@ -1737,6 +1831,8 @@ class _SearchMessageState extends StatelessWidget {
 }
 
 enum _ReaderMenuAction {
+  importOpml,
+  exportOpml,
   removeFeed,
   feedViewMode,
   defaultViewMode,

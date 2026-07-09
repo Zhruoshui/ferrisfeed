@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
 import 'package:rss_reader/src/rust/api/feed.dart' as rust_feed;
+import 'package:rss_reader/src/rust/api/opml.dart' as rust_opml;
 import 'package:rss_reader/src/rust/api/types.dart';
 
 class RefreshSummary {
@@ -14,6 +15,23 @@ class RefreshSummary {
   final int refreshedFeeds;
   final int insertedArticles;
   final int failedFeeds;
+}
+
+/// Tally of an OPML import run (mirrors the Rust `ImportReport`).
+class OpmlImportSummary {
+  const OpmlImportSummary({
+    required this.total,
+    required this.imported,
+    required this.skipped,
+    required this.failed,
+    required this.failedUrls,
+  });
+
+  final int total;
+  final int imported;
+  final int skipped;
+  final int failed;
+  final List<String> failedUrls;
 }
 
 /// Page size for the entry list. Additional pages are appended on
@@ -388,6 +406,32 @@ class ReaderController extends ChangeNotifier {
     } finally {
       _setWorking(false);
     }
+  }
+
+  /// Imports an OPML 2.0 document (batch-subscribes to each feed URL). Returns
+  /// a summary of the import. Reloads the feed list so newly imported feeds
+  /// appear in the sidebar.
+  Future<OpmlImportSummary> importOpml(String xml) async {
+    _setWorking(true);
+    try {
+      final report = await rust_opml.importOpml(xml: xml);
+      await _loadDbFeeds();
+      notifyListeners();
+      return OpmlImportSummary(
+        total: report.total,
+        imported: report.imported,
+        skipped: report.skipped,
+        failed: report.failed,
+        failedUrls: report.failedUrls,
+      );
+    } finally {
+      _setWorking(false);
+    }
+  }
+
+  /// Exports the current feed list to an OPML 2.0 XML string.
+  Future<String> exportOpml() async {
+    return rust_opml.exportOpml();
   }
 
   /// Opens (and selects) [entryId]. Marks the entry read on open and refreshes

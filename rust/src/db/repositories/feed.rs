@@ -112,6 +112,21 @@ pub fn set_feed_view_mode(
     Ok(())
 }
 
+/// Sets a feed's folder and category. Used during OPML import to apply the
+/// folder/category nesting from the OPML outline tree to the persisted feed.
+pub fn set_feed_folder(
+    conn: &Connection,
+    id: &str,
+    folder: Option<&str>,
+    category: Option<&str>,
+) -> Result<(), AppError> {
+    conn.execute(
+        "UPDATE feeds SET folder = ?1, category = ?2 WHERE id = ?3",
+        params![folder, category, id],
+    )?;
+    Ok(())
+}
+
 /// Recomputes the cached `article_count` / `unread_count` for a feed from its
 /// entries. Called after entry mutations to keep the denormalized counts
 /// consistent (mirrors Livo's `recalculate_feed_counts`).

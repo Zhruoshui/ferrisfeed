@@ -50,7 +50,7 @@ dependencies:
       ref: 254b193
       path: frb_dart
   freezed_annotation: ^3.0.0
-
+  file_picker: ^8.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

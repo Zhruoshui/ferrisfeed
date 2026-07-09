@@ -209,3 +209,19 @@ pub struct SyncReport {
     pub failed: i32,
     pub new_entries: i32,
 }
+
+/// Tally of an OPML import run. Returned by `api::opml::import_opml`.
+///
+/// `imported` counts newly subscribed feeds; `skipped` counts feeds that were
+/// already subscribed (idempotent on `source_url`); `failed` counts feeds whose
+/// subscription failed (network/parse error). `failed_urls` lists every URL
+/// that could not be subscribed.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportReport {
+    pub total: i32,
+    pub imported: i32,
+    pub failed: i32,
+    pub skipped: i32,
+    pub failed_urls: Vec<String>,
+}
