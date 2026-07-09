@@ -106,6 +106,11 @@ class _ReaderHomeState extends State<ReaderHome> {
                 onSelected: (action) => _handleMenuAction(action, controller),
                 itemBuilder: (context) => [
                   PopupMenuItem(
+                    value: _ReaderMenuAction.discoverFeeds,
+                    enabled: !controller.isWorking,
+                    child: const Text('Discover feeds'),
+                  ),
+                  PopupMenuItem(
                     value: _ReaderMenuAction.importOpml,
                     enabled: !controller.isWorking,
                     child: const Text('Import OPML'),
@@ -402,6 +407,20 @@ class _ReaderHomeState extends State<ReaderHome> {
     );
   }
 
+  /// Opens the interactive feed-discovery dialog (P3b). The dialog lets the
+  /// user enter a website URL, browse the discovered feed candidates, and
+  /// subscribe to one - mirroring the discovery step of [_showAddFeedDialog]
+  /// but staying inside the dialog so candidates can be browsed, retried, and
+  /// empty/error states handled inline.
+  Future<void> _showDiscoveryDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _DiscoveryDialog(controller: widget.controller);
+      },
+    );
+  }
+
   Future<void> _showSearch() async {
     final selectedId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -512,6 +531,9 @@ class _ReaderHomeState extends State<ReaderHome> {
     ReaderController controller,
   ) async {
     switch (action) {
+      case _ReaderMenuAction.discoverFeeds:
+        await _showDiscoveryDialog();
+        return;
       case _ReaderMenuAction.importOpml:
         await _importOpml();
         return;
@@ -1634,6 +1656,230 @@ class _SyncProgressBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
+/// Interactive feed-discovery dialog (P3b): a URL input + "Discover" action
+/// that calls `controller.discoverFeeds`, then lists candidate feeds. Tapping a
+/// candidate subscribes via `controller.subscribeFeed` and closes the dialog.
+///
+/// Mirrors the discovery step of `_ReaderHomeState._showAddFeedDialog` but keeps
+/// the user inside the dialog so they can browse candidates, retry with a
+/// different URL, and handle empty/error states without re-prompting.
+class _DiscoveryDialog extends StatefulWidget {
+  const _DiscoveryDialog({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  State<_DiscoveryDialog> createState() => _DiscoveryDialogState();
+}
+
+class _DiscoveryDialogState extends State<_DiscoveryDialog> {
+  final _textController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  List<FeedCandidate> _candidates = const [];
+  bool _isDiscovering = false;
+  bool _isSubscribing = false;
+  bool _hasSearched = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  bool get _isBusy => _isDiscovering || _isSubscribing;
+
+  Future<void> _discover() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final url = _textController.text.trim();
+    setState(() {
+      _isDiscovering = true;
+      _error = null;
+    });
+    try {
+      final candidates = await widget.controller.discoverFeeds(url);
+      if (mounted) {
+        setState(() {
+          _candidates = candidates;
+          _isDiscovering = false;
+          _hasSearched = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDiscovering = false;
+          _error = _describeError(e);
+          _hasSearched = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _subscribe(FeedCandidate candidate) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _isSubscribing = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.subscribeFeed(candidate.url);
+      if (mounted) {
+        Navigator.of(context).pop();
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Feed added.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubscribing = false;
+          _error = _describeError(e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Discover feeds'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Form(
+              key: _formKey,
+              child: TextFormField(
+                controller: _textController,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  labelText: 'Website URL',
+                  hintText: 'https://example.com',
+                ),
+                validator: (value) {
+                  final trimmed = value?.trim() ?? '';
+                  if (trimmed.isEmpty) {
+                    return 'Enter a URL.';
+                  }
+                  final uri = Uri.tryParse(trimmed);
+                  if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+                    return 'Enter a valid absolute URL.';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) => _discover(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildResults(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        FilledButton(
+          onPressed: _isBusy ? null : _discover,
+          child: const Text('Discover'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResults() {
+    if (_isDiscovering || _isSubscribing) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return _buildMessage(Icons.error_outline, _error!, isError: true);
+    }
+    if (!_hasSearched) {
+      return _buildMessage(
+        Icons.travel_explore,
+        'Enter a website URL to find its RSS or Atom feeds.',
+      );
+    }
+    if (_candidates.isEmpty) {
+      return _buildMessage(
+        Icons.search_off,
+        'No feeds found. Try another URL.',
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 280),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: _candidates.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final candidate = _candidates[index];
+          final title = candidate.title?.isNotEmpty == true
+              ? candidate.title!
+              : candidate.url;
+          return ListTile(
+            dense: true,
+            title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(
+              _candidateSubtitle(candidate),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () => _subscribe(candidate),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessage(IconData icon, String message, {bool isError = false}) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 36,
+              color:
+                  isError ? theme.colorScheme.error : theme.colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _candidateSubtitle(FeedCandidate candidate) {
+    final parts = <String>[
+      if (candidate.mimeType != null && candidate.mimeType!.isNotEmpty)
+        candidate.mimeType!,
+      candidate.url,
+    ];
+    return parts.join(' · ');
+  }
+}
+
 /// Full-screen search page with a debounced text field and results list.
 ///
 /// Searches across all feeds via `rust_entry.searchEntries`. Results reuse the
@@ -1831,6 +2077,7 @@ class _SearchMessageState extends StatelessWidget {
 }
 
 enum _ReaderMenuAction {
+  discoverFeeds,
   importOpml,
   exportOpml,
   removeFeed,

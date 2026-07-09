@@ -303,6 +303,46 @@ void main() {
     expect(find.text('Rust RSS Reader'), findsOneWidget);
     expect(find.text('No feeds yet'), findsOneWidget);
   });
+
+  // --- Discovery panel (P3b) -------------------------------------------------
+
+  testWidgets('discover dialog lists candidates and subscribes', (tester) async {
+    final controller = ReaderController(repository: ReaderRepository.memory());
+    await controller.load();
+
+    await tester.pumpWidget(MyApp(controller: controller));
+    await tester.pumpAndSettle();
+
+    // Open the overflow menu and pick "Discover feeds".
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discover feeds').last);
+    await tester.pumpAndSettle();
+
+    // The discovery dialog is open with a single URL field.
+    expect(find.byType(TextFormField), findsOneWidget);
+
+    // Enter a URL and run discovery.
+    await tester.enterText(
+      find.byType(TextFormField),
+      'https://example.com/feed.xml',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Discover'));
+    await tester.pumpAndSettle();
+
+    // The discovered candidate is listed (the mock returns one candidate
+    // whose title is null, so the URL is shown as the primary text).
+    expect(find.byType(ListTile), findsOneWidget);
+    expect(find.text('https://example.com/feed.xml'), findsWidgets);
+
+    // Subscribe to it.
+    await tester.tap(find.byType(ListTile));
+    await tester.pumpAndSettle();
+
+    // The dialog closed, a success snackbar is shown, and the feed was added.
+    expect(find.text('Feed added.'), findsOneWidget);
+    expect(controller.feeds.length, 1);
+  });
 }
 
 /// In-memory mock of the FRB `RustLibApi`. Mirrors the persisted feed + entry
