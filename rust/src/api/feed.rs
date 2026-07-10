@@ -96,6 +96,35 @@ pub async fn subscribe_feed(url: String) -> Result<Feed, AppError> {
     crate::feed::subscribe_feed_impl(&url).await
 }
 
+/// Subscribes to a "special" source (YouTube channel, RSSHub route, ...) by
+/// resolving the user's `input` to a concrete RSS URL via the named provider,
+/// then reusing the standard [`subscribe_feed`] pipeline (fetch + parse +
+/// persist). The resulting feed row records `feed_type` + `provider_input` so
+/// the UI can label the source and the URL can be regenerated if the RSSHub
+/// base changes later.
+///
+/// Provider ids: `youtube` (input = a `UC...` channel id) and `rsshub`
+/// (input = a route like `bilibili/user/dynamic/2267573`). Unknown providers
+/// return [`AppError::InvalidInput`].
+///
+/// Idempotent on the generated URL (delegates to [`subscribe_feed`], which is
+/// idempotent on `source_url`).
+#[flutter_rust_bridge::frb]
+pub async fn subscribe_special(
+    provider_id: String,
+    input: String,
+) -> Result<Feed, AppError> {
+    // URL generation is a single settings-lookup + string build; the mutex is
+    // released before we start the async fetch.
+    let (url, feed_type) = with_db(|conn| {
+        let provider = crate::feed::providers::get(&provider_id)?;
+        let url = provider.build_url(&input, conn)?;
+        Ok((url, provider.feed_type()))
+    })?;
+
+    crate::feed::subscribe_feed_with_provider(&url, feed_type, Some(input)).await
+}
+
 // --- P1b: feed sync & refresh with progress streaming ----------------------
 //
 // These async fns await the sync orchestrator DIRECTLY. FRB v2.12's

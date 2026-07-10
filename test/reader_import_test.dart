@@ -428,6 +428,8 @@ class _MockRustApi implements RustLibApi {
       errorCount: 0,
       etag: null,
       lastModified: null,
+      feedType: FeedType.rss,
+      providerInput: null,
       createdAt: now,
     );
     _dbFeeds.add(feed);
@@ -661,6 +663,8 @@ class _MockRustApi implements RustLibApi {
       errorCount: f.errorCount,
       etag: f.etag,
       lastModified: f.lastModified,
+      feedType: f.feedType,
+      providerInput: f.providerInput,
       createdAt: f.createdAt,
     );
   }

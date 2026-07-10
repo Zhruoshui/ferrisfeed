@@ -58,6 +58,27 @@ Future<List<FeedCandidate>> discoverFeeds({required String url}) =>
 Future<Feed> subscribeFeed({required String url}) =>
     RustLib.instance.api.crateApiFeedSubscribeFeed(url: url);
 
+/// Subscribes to a "special" source (YouTube channel, RSSHub route, ...) by
+/// resolving the user's `input` to a concrete RSS URL via the named provider,
+/// then reusing the standard [`subscribe_feed`] pipeline (fetch + parse +
+/// persist). The resulting feed row records `feed_type` + `provider_input` so
+/// the UI can label the source and the URL can be regenerated if the RSSHub
+/// base changes later.
+///
+/// Provider ids: `youtube` (input = a `UC...` channel id) and `rsshub`
+/// (input = a route like `bilibili/user/dynamic/2267573`). Unknown providers
+/// return [`AppError::InvalidInput`].
+///
+/// Idempotent on the generated URL (delegates to [`subscribe_feed`], which is
+/// idempotent on `source_url`).
+Future<Feed> subscribeSpecial({
+  required String providerId,
+  required String input,
+}) => RustLib.instance.api.crateApiFeedSubscribeSpecial(
+  providerId: providerId,
+  input: input,
+);
+
 /// Syncs the given feeds: fetch + parse + idempotent upsert + simhash near-dup
 /// dedup per feed, emitting a `SyncProgress` event per feed plus a final
 /// summary event. Per-feed failures are isolated (recorded on the feed row and

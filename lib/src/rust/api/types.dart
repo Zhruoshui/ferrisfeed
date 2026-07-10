@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Previous/next entry ids within a filter context, used for prev/next
 /// navigation in the reading UI. The list is ordered by `published_at DESC`
@@ -246,6 +246,18 @@ class Feed {
   /// HTTP caching helpers.
   final String? etag;
   final String? lastModified;
+
+  /// The kind of source producing this feed. `Rss` for vanilla RSS/Atom
+  /// URLs; `Youtube` / `Rsshub` for the special-feed providers landed in
+  /// P3c. Populated by `subscribe_special`; defaults to `Rss` at the DB
+  /// level for pre-P3c rows.
+  final FeedType feedType;
+
+  /// The original user-supplied handle for a special-feed subscription
+  /// (a YouTube channel id, an RSSHub route, ...). `None` for vanilla
+  /// `Rss` feeds. Lets the app re-generate `source_url` when config
+  /// changes (e.g. the RSSHub base URL is switched).
+  final String? providerInput;
   final DateTime createdAt;
 
   const Feed({
@@ -265,6 +277,8 @@ class Feed {
     required this.errorCount,
     this.etag,
     this.lastModified,
+    required this.feedType,
+    this.providerInput,
     required this.createdAt,
   });
 
@@ -286,6 +300,8 @@ class Feed {
       errorCount.hashCode ^
       etag.hashCode ^
       lastModified.hashCode ^
+      feedType.hashCode ^
+      providerInput.hashCode ^
       createdAt.hashCode;
 
   @override
@@ -309,6 +325,8 @@ class Feed {
           errorCount == other.errorCount &&
           etag == other.etag &&
           lastModified == other.lastModified &&
+          feedType == other.feedType &&
+          providerInput == other.providerInput &&
           createdAt == other.createdAt;
 }
 
@@ -371,6 +389,22 @@ class FeedDraft {
           sourceUrl == other.sourceUrl &&
           siteUrl == other.siteUrl &&
           description == other.description;
+}
+
+/// What kind of source produced a subscription.
+///
+/// `Rss` covers vanilla RSS/Atom URLs the user supplies directly. `Youtube` and
+/// `Rsshub` are the two special-feed providers landed in P3c: the URL stored in
+/// `Feed::source_url` is generated from `Feed::provider_input` at subscribe
+/// time. Persisted as lowercase `TEXT` in the `feeds.feed_type` column with
+/// `DEFAULT 'rss'` so pre-P3c rows migrate cleanly.
+enum FeedType {
+  rss,
+  youtube,
+  rsshub;
+
+  static Future<FeedType> default_() =>
+      RustLib.instance.api.crateApiTypesFeedTypeDefault();
 }
 
 /// Tally of an OPML import run. Returned by `api::opml::import_opml`.

@@ -8,7 +8,7 @@
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Row};
 
-use crate::api::types::{ArticleViewMode, Feed};
+use crate::api::types::{ArticleViewMode, Feed, FeedType};
 use crate::api::AppError;
 
 /// Inserts or updates a feed by `id`. `created_at` is set on insert and
@@ -20,9 +20,9 @@ pub fn upsert_feed(conn: &Connection, feed: &Feed) -> Result<(), AppError> {
             (id, title, source_url, site_url, description, image_url, folder,
              category, unread_count, article_count, last_synced_at,
              article_view_mode, last_error, error_count, etag, last_modified,
-             created_at)
+             feed_type, provider_input, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-                 ?15, ?16, ?17)
+                 ?15, ?16, ?17, ?18, ?19)
          ON CONFLICT(id) DO UPDATE SET
              title = excluded.title,
              source_url = excluded.source_url,
@@ -38,7 +38,9 @@ pub fn upsert_feed(conn: &Connection, feed: &Feed) -> Result<(), AppError> {
              last_error = excluded.last_error,
              error_count = excluded.error_count,
              etag = excluded.etag,
-             last_modified = excluded.last_modified",
+             last_modified = excluded.last_modified,
+             feed_type = excluded.feed_type,
+             provider_input = excluded.provider_input",
         params![
             feed.id,
             feed.title,
@@ -56,6 +58,8 @@ pub fn upsert_feed(conn: &Connection, feed: &Feed) -> Result<(), AppError> {
             feed.error_count,
             feed.etag,
             feed.last_modified,
+            feed_type_str(&feed.feed_type),
+            feed.provider_input,
             Utc::now().timestamp_millis(),
         ],
     )?;
@@ -173,6 +177,7 @@ fn feed_from_row(row: &Row) -> Result<Feed, rusqlite::Error> {
     let last_synced_ms: Option<i64> = row.get("last_synced_at")?;
     let created_ms: i64 = row.get("created_at")?;
     let view_mode_str: String = row.get("article_view_mode")?;
+    let feed_type_str: String = row.get("feed_type")?;
     Ok(Feed {
         id: row.get("id")?,
         title: row.get("title")?,
@@ -190,6 +195,8 @@ fn feed_from_row(row: &Row) -> Result<Feed, rusqlite::Error> {
         error_count: row.get("error_count")?,
         etag: row.get("etag")?,
         last_modified: row.get("last_modified")?,
+        feed_type: parse_feed_type(&feed_type_str),
+        provider_input: row.get("provider_input")?,
         created_at: DateTime::from_timestamp_millis(created_ms).unwrap_or_else(Utc::now),
     })
 }
@@ -209,5 +216,21 @@ fn view_mode_str(mode: &ArticleViewMode) -> &'static str {
         ArticleViewMode::Webpage => "webpage",
         ArticleViewMode::Rendered => "rendered",
         ArticleViewMode::External => "external",
+    }
+}
+
+fn parse_feed_type(s: &str) -> FeedType {
+    match s {
+        "youtube" => FeedType::Youtube,
+        "rsshub" => FeedType::Rsshub,
+        _ => FeedType::Rss,
+    }
+}
+
+fn feed_type_str(t: &FeedType) -> &'static str {
+    match t {
+        FeedType::Rss => "rss",
+        FeedType::Youtube => "youtube",
+        FeedType::Rsshub => "rsshub",
     }
 }

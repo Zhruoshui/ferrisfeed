@@ -38,6 +38,8 @@ fn sample_feed(id: &str, url: &str) -> Feed {
         error_count: 0,
         etag: None,
         last_modified: None,
+        feed_type: crate::api::types::FeedType::Rss,
+        provider_input: None,
         created_at: Utc::now(),
     }
 }

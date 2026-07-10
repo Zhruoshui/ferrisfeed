@@ -11,6 +11,7 @@ import 'api/entry.dart';
 import 'api/error.dart';
 import 'api/feed.dart';
 import 'api/opml.dart';
+import 'api/settings.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -89,6 +90,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FeedDraft dco_decode_feed_draft(dynamic raw);
+
+  @protected
+  FeedType dco_decode_feed_type(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -213,6 +217,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FeedDraft sse_decode_feed_draft(SseDeserializer deserializer);
+
+  @protected
+  FeedType sse_decode_feed_type(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -355,6 +362,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_feed_draft(FeedDraft self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_feed_type(FeedType self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);

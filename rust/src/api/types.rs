@@ -32,6 +32,28 @@ impl Default for ArticleViewMode {
     }
 }
 
+/// What kind of source produced a subscription.
+///
+/// `Rss` covers vanilla RSS/Atom URLs the user supplies directly. `Youtube` and
+/// `Rsshub` are the two special-feed providers landed in P3c: the URL stored in
+/// `Feed::source_url` is generated from `Feed::provider_input` at subscribe
+/// time. Persisted as lowercase `TEXT` in the `feeds.feed_type` column with
+/// `DEFAULT 'rss'` so pre-P3c rows migrate cleanly.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum FeedType {
+    Rss,
+    Youtube,
+    Rsshub,
+}
+
+impl Default for FeedType {
+    fn default() -> Self {
+        Self::Rss
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Feed-related DTOs
 // ---------------------------------------------------------------------------
@@ -62,6 +84,16 @@ pub struct Feed {
     /// HTTP caching helpers.
     pub etag: Option<String>,
     pub last_modified: Option<String>,
+    /// The kind of source producing this feed. `Rss` for vanilla RSS/Atom
+    /// URLs; `Youtube` / `Rsshub` for the special-feed providers landed in
+    /// P3c. Populated by `subscribe_special`; defaults to `Rss` at the DB
+    /// level for pre-P3c rows.
+    pub feed_type: FeedType,
+    /// The original user-supplied handle for a special-feed subscription
+    /// (a YouTube channel id, an RSSHub route, ...). `None` for vanilla
+    /// `Rss` feeds. Lets the app re-generate `source_url` when config
+    /// changes (e.g. the RSSHub base URL is switched).
+    pub provider_input: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

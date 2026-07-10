@@ -9,6 +9,7 @@
 pub mod category;
 pub mod entry;
 pub mod feed;
+pub mod settings;
 
 #[cfg(test)]
 mod tests;

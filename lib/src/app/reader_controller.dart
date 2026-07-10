@@ -3,6 +3,7 @@ import 'package:rss_reader/src/app/reader_repository.dart';
 import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
 import 'package:rss_reader/src/rust/api/feed.dart' as rust_feed;
 import 'package:rss_reader/src/rust/api/opml.dart' as rust_opml;
+import 'package:rss_reader/src/rust/api/settings.dart' as rust_settings;
 import 'package:rss_reader/src/rust/api/types.dart';
 
 class RefreshSummary {
@@ -339,6 +340,47 @@ class ReaderController extends ChangeNotifier {
       _setWorking(false);
     }
   }
+
+  /// Subscribes to a "special" source (YouTube channel id, RSSHub route, ...)
+  /// via Rust. The provider (`providerId`) turns the opaque `input` into an RSS
+  /// URL, then the standard subscribe pipeline runs. Selects the new feed on
+  /// success.
+  Future<void> subscribeSpecial({
+    required String providerId,
+    required String input,
+  }) async {
+    _setWorking(true);
+    try {
+      final feed = await rust_feed.subscribeSpecial(
+        providerId: providerId,
+        input: input,
+      );
+      await _loadDbFeeds();
+      _selectedFeedId = feed.id;
+      _showStarredOnly = false;
+      _showUnreadOnly = false;
+      _selectedEntryId = null;
+      _selectedEntry = null;
+      _adjacent = null;
+      await _reloadArticles();
+      notifyListeners();
+    } finally {
+      _setWorking(false);
+    }
+  }
+
+  /// Reads the configured RSSHub base URL (falls back to the built-in default
+  /// when unset). The settings dialog displays this on open.
+  Future<String> getRsshubBaseUrl() => rust_settings.getRsshubBaseUrl();
+
+  /// Persists the RSSHub base URL. `null` (or an empty string) clears the
+  /// override; subsequent reads fall back to the default.
+  Future<void> setRsshubBaseUrl(String? url) =>
+      rust_settings.setRsshubBaseUrl(url: url);
+
+  /// The compile-time default RSSHub base URL, shown as a placeholder in the
+  /// settings dialog.
+  Future<String> defaultRsshubBaseUrl() => rust_settings.defaultRsshubBaseUrl();
 
   Future<RefreshSummary> refreshFeeds() async {
     if (feeds.isEmpty) {

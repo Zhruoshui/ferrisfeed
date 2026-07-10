@@ -15,13 +15,14 @@ pub(crate) mod discover;
 pub(crate) mod fetch;
 pub(crate) mod normalize;
 pub(crate) mod parse;
+pub(crate) mod providers;
 pub(crate) mod simhash;
 pub(crate) mod sync;
 
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::api::types::{ArticleViewMode, Feed, FeedCandidate};
+use crate::api::types::{ArticleViewMode, Feed, FeedCandidate, FeedType};
 use crate::api::AppError;
 use crate::db::connection::with_db;
 use crate::db::repositories;
@@ -65,6 +66,18 @@ pub(crate) async fn discover_feeds_impl(url: &str) -> Result<Vec<FeedCandidate>,
 /// existing record is returned instead of creating a duplicate (the
 /// `feeds_source_url_idx` unique index would otherwise reject the insert).
 pub(crate) async fn subscribe_feed_impl(url: &str) -> Result<Feed, AppError> {
+    subscribe_feed_with_provider(url, FeedType::Rss, None).await
+}
+
+/// Like [`subscribe_feed_impl`] but records the source kind + original
+/// provider input on the persisted row. Used by `api::feed::subscribe_special`
+/// so the feed can later be rebuilt (e.g. RSSHub-instance switch) and labelled
+/// in the UI.
+pub(crate) async fn subscribe_feed_with_provider(
+    url: &str,
+    feed_type: FeedType,
+    provider_input: Option<String>,
+) -> Result<Feed, AppError> {
     let (bytes, _content_type) = fetch::fetch_url(url).await?;
     let parsed = parse::parse_feed(&bytes, url)?;
 
@@ -89,6 +102,8 @@ pub(crate) async fn subscribe_feed_impl(url: &str) -> Result<Feed, AppError> {
         error_count: 0,
         etag: None,
         last_modified: None,
+        feed_type,
+        provider_input,
         created_at: now,
     };
 

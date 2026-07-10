@@ -83,11 +83,37 @@ ALTER TABLE feeds ADD COLUMN etag TEXT;
 ALTER TABLE feeds ADD COLUMN last_modified TEXT;
 "#;
 
+/// v3: adds the generic key/value `settings` table (RSSHub base URL and any
+/// future config lands here) plus two columns on `feeds` that make a feed's
+/// origin re-derivable:
+///
+/// - `feed_type` (`rss` | `youtube` | `rsshub`): what kind of source produced
+///   this feed. `NOT NULL DEFAULT 'rss'` so existing rows migrate cleanly.
+/// - `provider_input`: the original user-supplied handle (a YouTube channel id,
+///   an RSSHub route, ...). `NULL` for vanilla `rss` feeds. Lets the app
+///   re-generate `source_url` if e.g. the RSSHub base URL changes later.
+///
+/// Mirrors Livo's `settings-schema.ts` (rsshubInstance) + `upstreamUrl` /
+/// `fetchSource` fields on the feed row.
+const V3_SETTINGS_AND_PROVIDER: &str = r#"
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+ALTER TABLE feeds ADD COLUMN feed_type TEXT NOT NULL DEFAULT 'rss';
+ALTER TABLE feeds ADD COLUMN provider_input TEXT;
+"#;
+
 /// Runs all pending migrations against `conn`, bringing it to the latest
 /// schema version. Safe to call on a fresh database and on an already-current
 /// one (idempotent).
 pub fn run(conn: &mut Connection) -> Result<(), AppError> {
-    let migrations = Migrations::new(vec![M::up(V1_INIT), M::up(V2_FEED_METADATA)]);
+    let migrations = Migrations::new(vec![
+        M::up(V1_INIT),
+        M::up(V2_FEED_METADATA),
+        M::up(V3_SETTINGS_AND_PROVIDER),
+    ]);
     migrations
         .to_latest(conn)
         .map_err(|e| AppError::database(format!("migration failed: {e}")))?;

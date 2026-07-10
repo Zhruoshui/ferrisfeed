@@ -8,6 +8,7 @@ import 'api/entry.dart';
 import 'api/error.dart';
 import 'api/feed.dart';
 import 'api/opml.dart';
+import 'api/settings.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1620617620;
+  int get rustContentHash => -658137604;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -87,6 +88,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<ArticleViewMode> crateApiTypesArticleViewModeDefault();
 
+  Future<String> crateApiSettingsDefaultRsshubBaseUrl();
+
   Future<void> crateApiEntryDeleteCategory({required String categoryId});
 
   Future<void> crateApiFeedDeleteFeed({required String feedId});
@@ -94,6 +97,8 @@ abstract class RustLibApi extends BaseApi {
   Future<List<FeedCandidate>> crateApiFeedDiscoverFeeds({required String url});
 
   Future<String> crateApiOpmlExportOpml();
+
+  Future<FeedType> crateApiTypesFeedTypeDefault();
 
   Future<AdjacentEntries> crateApiEntryGetAdjacentEntries({
     required String entryId,
@@ -105,6 +110,10 @@ abstract class RustLibApi extends BaseApi {
   Future<Entry> crateApiEntryGetEntry({required String entryId});
 
   Future<Feed> crateApiFeedGetFeed({required String feedId});
+
+  Future<String> crateApiSettingsGetRsshubBaseUrl();
+
+  Future<String?> crateApiSettingsGetSetting({required String key});
 
   String crateApiAppGreet({required String name});
 
@@ -150,7 +159,16 @@ abstract class RustLibApi extends BaseApi {
     required ArticleViewMode viewMode,
   });
 
+  Future<void> crateApiSettingsSetRsshubBaseUrl({String? url});
+
+  Future<void> crateApiSettingsSetSetting({required String key, String? value});
+
   Future<Feed> crateApiFeedSubscribeFeed({required String url});
+
+  Future<Feed> crateApiFeedSubscribeSpecial({
+    required String providerId,
+    required String input,
+  });
 
   Stream<SyncProgress> crateApiFeedSyncFeeds({required List<String> feedIds});
 
@@ -231,6 +249,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "article_view_mode_default", argNames: []);
 
   @override
+  Future<String> crateApiSettingsDefaultRsshubBaseUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSettingsDefaultRsshubBaseUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSettingsDefaultRsshubBaseUrlConstMeta =>
+      const TaskConstMeta(debugName: "default_rsshub_base_url", argNames: []);
+
+  @override
   Future<void> crateApiEntryDeleteCategory({required String categoryId}) {
     return handler.executeNormal(
       NormalTask(
@@ -240,7 +285,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -271,7 +316,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -299,7 +344,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -326,7 +371,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -343,6 +388,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiOpmlExportOpmlConstMeta =>
       const TaskConstMeta(debugName: "export_opml", argNames: []);
+
+  @override
+  Future<FeedType> crateApiTypesFeedTypeDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_feed_type,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiTypesFeedTypeDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTypesFeedTypeDefaultConstMeta =>
+      const TaskConstMeta(debugName: "feed_type_default", argNames: []);
 
   @override
   Future<AdjacentEntries> crateApiEntryGetAdjacentEntries({
@@ -362,7 +434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -393,7 +465,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -421,7 +493,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -440,13 +512,68 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_feed", argNames: ["feedId"]);
 
   @override
+  Future<String> crateApiSettingsGetRsshubBaseUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_app_error,
+        ),
+        constMeta: kCrateApiSettingsGetRsshubBaseUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSettingsGetRsshubBaseUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_rsshub_base_url", argNames: []);
+
+  @override
+  Future<String?> crateApiSettingsGetSetting({required String key}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(key, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_app_error,
+        ),
+        constMeta: kCrateApiSettingsGetSettingConstMeta,
+        argValues: [key],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSettingsGetSettingConstMeta =>
+      const TaskConstMeta(debugName: "get_setting", argNames: ["key"]);
+
+  @override
   String crateApiAppGreet({required String name}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -472,7 +599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 15,
             port: port_,
           );
         },
@@ -499,7 +626,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 16,
             port: port_,
           );
         },
@@ -527,7 +654,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 17,
             port: port_,
           );
         },
@@ -554,7 +681,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 18,
             port: port_,
           );
         },
@@ -592,7 +719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 19,
             port: port_,
           );
         },
@@ -621,7 +748,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 20,
             port: port_,
           );
         },
@@ -649,7 +776,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 21,
             port: port_,
           );
         },
@@ -681,7 +808,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 22,
             port: port_,
           );
         },
@@ -713,7 +840,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 19,
+              funcId: 23,
               port: port_,
             );
           },
@@ -745,7 +872,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 20,
+              funcId: 24,
               port: port_,
             );
           },
@@ -775,7 +902,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 25,
             port: port_,
           );
         },
@@ -809,7 +936,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 26,
             port: port_,
           );
         },
@@ -843,7 +970,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 27,
             port: port_,
           );
         },
@@ -865,6 +992,66 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiSettingsSetRsshubBaseUrl({String? url}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_String(url, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_app_error,
+        ),
+        constMeta: kCrateApiSettingsSetRsshubBaseUrlConstMeta,
+        argValues: [url],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSettingsSetRsshubBaseUrlConstMeta =>
+      const TaskConstMeta(debugName: "set_rsshub_base_url", argNames: ["url"]);
+
+  @override
+  Future<void> crateApiSettingsSetSetting({
+    required String key,
+    String? value,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(key, serializer);
+          sse_encode_opt_String(value, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_app_error,
+        ),
+        constMeta: kCrateApiSettingsSetSettingConstMeta,
+        argValues: [key, value],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSettingsSetSettingConstMeta =>
+      const TaskConstMeta(debugName: "set_setting", argNames: ["key", "value"]);
+
+  @override
   Future<Feed> crateApiFeedSubscribeFeed({required String url}) {
     return handler.executeNormal(
       NormalTask(
@@ -874,7 +1061,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 30,
             port: port_,
           );
         },
@@ -893,6 +1080,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "subscribe_feed", argNames: ["url"]);
 
   @override
+  Future<Feed> crateApiFeedSubscribeSpecial({
+    required String providerId,
+    required String input,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(providerId, serializer);
+          sse_encode_String(input, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_feed,
+          decodeErrorData: sse_decode_app_error,
+        ),
+        constMeta: kCrateApiFeedSubscribeSpecialConstMeta,
+        argValues: [providerId, input],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiFeedSubscribeSpecialConstMeta =>
+      const TaskConstMeta(
+        debugName: "subscribe_special",
+        argNames: ["providerId", "input"],
+      );
+
+  @override
   Stream<SyncProgress> crateApiFeedSyncFeeds({required List<String> feedIds}) {
     final sink = RustStreamSink<SyncProgress>();
     unawaited(
@@ -905,7 +1127,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 25,
+              funcId: 32,
               port: port_,
             );
           },
@@ -937,7 +1159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 33,
             port: port_,
           );
         },
@@ -976,7 +1198,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1006,7 +1228,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1038,7 +1260,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1068,7 +1290,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1280,8 +1502,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Feed dco_decode_feed(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 17)
-      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    if (arr.length != 19)
+      throw Exception('unexpected arr length: expect 19 but see ${arr.length}');
     return Feed(
       id: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -1299,7 +1521,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       errorCount: dco_decode_i_32(arr[13]),
       etag: dco_decode_opt_String(arr[14]),
       lastModified: dco_decode_opt_String(arr[15]),
-      createdAt: dco_decode_Chrono_Utc(arr[16]),
+      feedType: dco_decode_feed_type(arr[16]),
+      providerInput: dco_decode_opt_String(arr[17]),
+      createdAt: dco_decode_Chrono_Utc(arr[18]),
     );
   }
 
@@ -1328,6 +1552,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       siteUrl: dco_decode_opt_String(arr[2]),
       description: dco_decode_opt_String(arr[3]),
     );
+  }
+
+  @protected
+  FeedType dco_decode_feed_type(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FeedType.values[raw as int];
   }
 
   @protected
@@ -1706,6 +1936,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_errorCount = sse_decode_i_32(deserializer);
     var var_etag = sse_decode_opt_String(deserializer);
     var var_lastModified = sse_decode_opt_String(deserializer);
+    var var_feedType = sse_decode_feed_type(deserializer);
+    var var_providerInput = sse_decode_opt_String(deserializer);
     var var_createdAt = sse_decode_Chrono_Utc(deserializer);
     return Feed(
       id: var_id,
@@ -1724,6 +1956,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       errorCount: var_errorCount,
       etag: var_etag,
       lastModified: var_lastModified,
+      feedType: var_feedType,
+      providerInput: var_providerInput,
       createdAt: var_createdAt,
     );
   }
@@ -1754,6 +1988,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       siteUrl: var_siteUrl,
       description: var_description,
     );
+  }
+
+  @protected
+  FeedType sse_decode_feed_type(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FeedType.values[inner];
   }
 
   @protected
@@ -2194,6 +2435,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.errorCount, serializer);
     sse_encode_opt_String(self.etag, serializer);
     sse_encode_opt_String(self.lastModified, serializer);
+    sse_encode_feed_type(self.feedType, serializer);
+    sse_encode_opt_String(self.providerInput, serializer);
     sse_encode_Chrono_Utc(self.createdAt, serializer);
   }
 
@@ -2212,6 +2455,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.sourceUrl, serializer);
     sse_encode_opt_String(self.siteUrl, serializer);
     sse_encode_opt_String(self.description, serializer);
+  }
+
+  @protected
+  void sse_encode_feed_type(FeedType self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

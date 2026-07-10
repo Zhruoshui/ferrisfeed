@@ -111,6 +111,11 @@ class _ReaderHomeState extends State<ReaderHome> {
                     child: const Text('Discover feeds'),
                   ),
                   PopupMenuItem(
+                    value: _ReaderMenuAction.subscribeSpecial,
+                    enabled: !controller.isWorking,
+                    child: const Text('Subscribe by ID…'),
+                  ),
+                  PopupMenuItem(
                     value: _ReaderMenuAction.importOpml,
                     enabled: !controller.isWorking,
                     child: const Text('Import OPML'),
@@ -119,6 +124,12 @@ class _ReaderHomeState extends State<ReaderHome> {
                     value: _ReaderMenuAction.exportOpml,
                     enabled: !controller.isWorking,
                     child: const Text('Export OPML'),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.rsshubSettings,
+                    enabled: !controller.isWorking,
+                    child: const Text('RSSHub settings…'),
                   ),
                   const PopupMenuDivider(),
                   PopupMenuItem(
@@ -421,6 +432,32 @@ class _ReaderHomeState extends State<ReaderHome> {
     );
   }
 
+  /// Opens the "subscribe by ID" dialog (P3c). Users pick a special-feed
+  /// provider (YouTube channel id, RSSHub route) and enter the id/route; the
+  /// dialog forwards to [ReaderController.subscribeSpecial] which resolves the
+  /// URL Rust-side and reuses the standard subscribe pipeline.
+  Future<void> _showSubscribeSpecialDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _SubscribeSpecialDialog(controller: widget.controller);
+      },
+    );
+  }
+
+  /// Opens the RSSHub base-URL settings dialog (P3c). The RSSHub provider
+  /// reads this value when building per-subscription URLs; changing it later
+  /// only affects newly-added special feeds (rebuild of existing rows is
+  /// deferred - the schema supports it via `provider_input`).
+  Future<void> _showRsshubSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return _RsshubSettingsDialog(controller: widget.controller);
+      },
+    );
+  }
+
   Future<void> _showSearch() async {
     final selectedId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -534,11 +571,17 @@ class _ReaderHomeState extends State<ReaderHome> {
       case _ReaderMenuAction.discoverFeeds:
         await _showDiscoveryDialog();
         return;
+      case _ReaderMenuAction.subscribeSpecial:
+        await _showSubscribeSpecialDialog();
+        return;
       case _ReaderMenuAction.importOpml:
         await _importOpml();
         return;
       case _ReaderMenuAction.exportOpml:
         await _exportOpml();
+        return;
+      case _ReaderMenuAction.rsshubSettings:
+        await _showRsshubSettingsDialog();
         return;
       case _ReaderMenuAction.removeFeed:
         final feed = controller.selectedFeed;
@@ -1880,6 +1923,366 @@ class _DiscoveryDialogState extends State<_DiscoveryDialog> {
   }
 }
 
+/// Special-feed provider descriptor for the "Subscribe by ID" dialog. Kept
+/// small on purpose — Rust owns URL generation; this side just prompts for the
+/// right kind of input and forwards `(providerId, input)` to
+/// [ReaderController.subscribeSpecial].
+class _SpecialProviderChoice {
+  const _SpecialProviderChoice({
+    required this.id,
+    required this.label,
+    required this.inputLabel,
+    required this.hint,
+    required this.helper,
+  });
+
+  final String id;
+  final String label;
+  final String inputLabel;
+  final String hint;
+  final String helper;
+}
+
+const _specialProviderChoices = <_SpecialProviderChoice>[
+  _SpecialProviderChoice(
+    id: 'youtube',
+    label: 'YouTube channel',
+    inputLabel: 'Channel ID',
+    hint: 'UCXuqSBlHAE6Xw-yeJA0Tunw',
+    helper:
+        'Paste the "UC…" channel id from a YouTube channel page URL.',
+  ),
+  _SpecialProviderChoice(
+    id: 'rsshub',
+    label: 'RSSHub route',
+    inputLabel: 'Route',
+    hint: 'bilibili/user/dynamic/2267573',
+    helper:
+        'Enter a route from docs.rsshub.app (no leading slash). Uses the '
+        'RSSHub base URL from settings.',
+  ),
+];
+
+/// Dialog for subscribing to a special-feed provider by id (P3c).
+///
+/// Layout: a segmented provider picker across the top, an input field below,
+/// a helper caption, and Cancel / Subscribe actions. The heavy lifting
+/// (URL build, fetch, parse, persist) happens Rust-side via
+/// [ReaderController.subscribeSpecial]; this widget only handles form state
+/// and error surfacing.
+class _SubscribeSpecialDialog extends StatefulWidget {
+  const _SubscribeSpecialDialog({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  State<_SubscribeSpecialDialog> createState() =>
+      _SubscribeSpecialDialogState();
+}
+
+class _SubscribeSpecialDialogState extends State<_SubscribeSpecialDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _inputController = TextEditingController();
+  _SpecialProviderChoice _provider = _specialProviderChoices.first;
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _subscribe() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final input = _inputController.text.trim();
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.subscribeSpecial(
+        providerId: _provider.id,
+        input: input,
+      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Feed added.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _error = _describeError(e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Subscribe by ID'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<_SpecialProviderChoice>(
+                segments: [
+                  for (final choice in _specialProviderChoices)
+                    ButtonSegment(value: choice, label: Text(choice.label)),
+                ],
+                selected: {_provider},
+                onSelectionChanged: _isSubmitting
+                    ? null
+                    : (values) {
+                        setState(() {
+                          _provider = values.first;
+                          _error = null;
+                        });
+                      },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _inputController,
+                autofocus: true,
+                enabled: !_isSubmitting,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: _provider.inputLabel,
+                  hintText: _provider.hint,
+                  helperText: _provider.helper,
+                  helperMaxLines: 3,
+                ),
+                validator: (value) {
+                  final trimmed = value?.trim() ?? '';
+                  if (trimmed.isEmpty) {
+                    return 'Enter a ${_provider.inputLabel.toLowerCase()}.';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) => _subscribe(),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isSubmitting ? null : _subscribe,
+          child: _isSubmitting
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Subscribe'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for editing the RSSHub base URL (P3c).
+///
+/// Loads the currently-stored value on open (default when unset), lets the
+/// user edit or reset it, and persists via [ReaderController.setRsshubBaseUrl].
+/// Only affects newly-added special feeds — existing rows keep the URL they
+/// were subscribed with.
+class _RsshubSettingsDialog extends StatefulWidget {
+  const _RsshubSettingsDialog({required this.controller});
+
+  final ReaderController controller;
+
+  @override
+  State<_RsshubSettingsDialog> createState() => _RsshubSettingsDialogState();
+}
+
+class _RsshubSettingsDialogState extends State<_RsshubSettingsDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _urlController = TextEditingController();
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String _defaultUrl = '';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final current = await widget.controller.getRsshubBaseUrl();
+      final fallback = await widget.controller.defaultRsshubBaseUrl();
+      if (!mounted) return;
+      setState(() {
+        _urlController.text = current;
+        _defaultUrl = fallback;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = _describeError(e);
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final trimmed = _urlController.text.trim();
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+    try {
+      await widget.controller.setRsshubBaseUrl(
+        trimmed.isEmpty ? null : trimmed,
+      );
+      if (mounted) {
+        Navigator.of(context).pop();
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('RSSHub base URL saved.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _error = _describeError(e);
+        });
+      }
+    }
+  }
+
+  Future<void> _resetToDefault() async {
+    setState(() {
+      _urlController.text = _defaultUrl;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('RSSHub settings'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _isLoading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _urlController,
+                      enabled: !_isSaving,
+                      autofocus: true,
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.done,
+                      decoration: InputDecoration(
+                        labelText: 'RSSHub base URL',
+                        hintText: _defaultUrl,
+                        helperText:
+                            'Public instances can be slow or rate-limited. '
+                            'Self-hosting is recommended for heavy use.',
+                        helperMaxLines: 3,
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          // Empty is allowed — it means "use the default".
+                          return null;
+                        }
+                        final uri = Uri.tryParse(trimmed);
+                        if (uri == null ||
+                            !uri.hasScheme ||
+                            !uri.hasAuthority ||
+                            (uri.scheme != 'http' && uri.scheme != 'https')) {
+                          return 'Enter a valid http(s) URL, or leave blank for the default.';
+                        }
+                        return null;
+                      },
+                      onFieldSubmitted: (_) => _save(),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _error!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        if (!_isLoading)
+          TextButton(
+            onPressed: _isSaving ? null : _resetToDefault,
+            child: const Text('Reset'),
+          ),
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isLoading || _isSaving ? null : _save,
+          child: _isSaving
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
 /// Full-screen search page with a debounced text field and results list.
 ///
 /// Searches across all feeds via `rust_entry.searchEntries`. Results reuse the
@@ -2078,8 +2481,10 @@ class _SearchMessageState extends StatelessWidget {
 
 enum _ReaderMenuAction {
   discoverFeeds,
+  subscribeSpecial,
   importOpml,
   exportOpml,
+  rsshubSettings,
   removeFeed,
   feedViewMode,
   defaultViewMode,
