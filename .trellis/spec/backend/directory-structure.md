@@ -27,6 +27,7 @@ rust/
 │       ├── feed.rs          # (P0b) feed CRUD; (P1a) subscribe + sync
 │       ├── entry.rs         # (P0b) entry list/get/mark-read/star/adjacent; (P1a) search
 │       └── settings.rs      # (later) settings get/set
+│   ├── ai/                  # (P4) LLM client, prompts, and AI orchestration
 │   ├── db/                  # (P0b) rusqlite pool, schema, migrations, repositories
 │   ├── feed/                # (P1a) fetch (reqwest) + parse (feed-rs)
 │   └── services/            # business logic the api layer delegates to
@@ -55,6 +56,7 @@ rust/
 
 - `db/` — rusqlite connection pool, schema migrations, repository structs. Never directly called from Dart.
 - `feed/` — HTTP fetching (reqwest) and XML parsing (feed-rs). Called from `services/`.
+- `ai/` — LLM integration (P4): OpenAI-compatible client, prompts, config, and summary/translation orchestration. Called from `api/ai.rs`.
 - `services/` — business logic orchestrating `db/` + `feed/`. Called from `api/`.
 
 ---
