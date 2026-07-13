@@ -21,7 +21,11 @@ pub enum AppError {
     /// User-supplied input was invalid (empty URL, duplicate subscription, ...).
     InvalidInput(String),
     /// A network request failed.
-    Network { url: String, status: u16, message: String },
+    Network {
+        url: String,
+        status: u16,
+        message: String,
+    },
     /// A feed could not be parsed (unsupported format, malformed XML, ...).
     FeedParse { url: String, message: String },
     /// A database operation failed.
@@ -61,7 +65,11 @@ impl fmt::Display for AppError {
                 write!(f, "{resource} not found: {id}")
             }
             AppError::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
-            AppError::Network { url, status, message } => {
+            AppError::Network {
+                url,
+                status,
+                message,
+            } => {
                 write!(f, "network error ({status}) for {url}: {message}")
             }
             AppError::FeedParse { url, message } => {

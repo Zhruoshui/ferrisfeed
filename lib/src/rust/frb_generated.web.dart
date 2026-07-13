@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/ai.dart';
 import 'api/app.dart';
 import 'api/entry.dart';
 import 'api/error.dart';
@@ -47,6 +48,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdjacentEntries dco_decode_adjacent_entries(dynamic raw);
 
   @protected
+  AiConfig dco_decode_ai_config(dynamic raw);
+
+  @protected
+  AiViewMode dco_decode_ai_view_mode(dynamic raw);
+
+  @protected
   AppError dco_decode_app_error(dynamic raw);
 
   @protected
@@ -57,6 +64,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
+  AiConfig dco_decode_box_autoadd_ai_config(dynamic raw);
 
   @protected
   Category dco_decode_box_autoadd_category(dynamic raw);
@@ -174,6 +184,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdjacentEntries sse_decode_adjacent_entries(SseDeserializer deserializer);
 
   @protected
+  AiConfig sse_decode_ai_config(SseDeserializer deserializer);
+
+  @protected
+  AiViewMode sse_decode_ai_view_mode(SseDeserializer deserializer);
+
+  @protected
   AppError sse_decode_app_error(SseDeserializer deserializer);
 
   @protected
@@ -184,6 +200,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
+  AiConfig sse_decode_box_autoadd_ai_config(SseDeserializer deserializer);
 
   @protected
   Category sse_decode_box_autoadd_category(SseDeserializer deserializer);
@@ -313,6 +332,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ai_config(AiConfig self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ai_view_mode(AiViewMode self, SseSerializer serializer);
+
+  @protected
   void sse_encode_app_error(AppError self, SseSerializer serializer);
 
   @protected
@@ -327,6 +352,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_Chrono_Utc(
     DateTime self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ai_config(
+    AiConfig self,
     SseSerializer serializer,
   );
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
+import 'package:rss_reader/src/rust/api/ai.dart' as rust_ai;
 import 'package:rss_reader/src/rust/api/entry.dart' as rust_entry;
+import 'package:rss_reader/src/rust/api/error.dart';
 import 'package:rss_reader/src/rust/api/feed.dart' as rust_feed;
 import 'package:rss_reader/src/rust/api/opml.dart' as rust_opml;
 import 'package:rss_reader/src/rust/api/settings.dart' as rust_settings;
@@ -81,6 +83,21 @@ class ReaderController extends ChangeNotifier {
   /// Light/dark/system theme mode. Persisted across restarts.
   ThemeMode _themeMode = ThemeMode.system;
 
+  /// Cached AI provider configuration.
+  AiConfig? _aiConfig;
+
+  /// Current AI panel view mode for the selected article.
+  AiViewMode _aiViewMode = AiViewMode.original;
+
+  /// In-memory cache for generated AI text. Key is `entryId:summary|translation`.
+  final Map<String, String> _aiResults = {};
+
+  /// Whether an AI summary/translation request is in flight.
+  bool _aiLoading = false;
+
+  /// Error message from the last AI request, if any.
+  String? _aiError;
+
   ArticleViewMode get appDefaultViewMode => _appDefaultViewMode;
 
   set appDefaultViewMode(ArticleViewMode mode) {
@@ -122,6 +139,24 @@ class ReaderController extends ChangeNotifier {
     _persistSetting('theme_mode', mode.name);
     notifyListeners();
   }
+
+  /// Current AI panel view mode for the selected article.
+  AiViewMode get aiViewMode => _aiViewMode;
+
+  set aiViewMode(AiViewMode mode) {
+    if (mode == _aiViewMode) {
+      return;
+    }
+    _aiViewMode = mode;
+    _aiError = null;
+    notifyListeners();
+  }
+
+  /// Whether an AI summary/translation request is in flight.
+  bool get aiLoading => _aiLoading;
+
+  /// Error message from the last AI request, if any.
+  String? get aiError => _aiError;
 
   /// Resolves the effective view mode for [feedId], collapsing `global` to the
   /// current app default. Never returns [ArticleViewMode.global].
@@ -225,6 +260,11 @@ class ReaderController extends ChangeNotifier {
     final defaultViewStr = await _repository.getSetting('app_default_view_mode');
     if (defaultViewStr != null) {
       _appDefaultViewMode = _parseViewModeName(defaultViewStr) ?? _appDefaultViewMode;
+    }
+    try {
+      _aiConfig = await rust_ai.getAiConfig();
+    } catch (_) {
+      // AI config is best-effort; defaults will be supplied on demand.
     }
   }
 
@@ -382,6 +422,104 @@ class ReaderController extends ChangeNotifier {
   /// settings dialog.
   Future<String> defaultRsshubBaseUrl() => rust_settings.defaultRsshubBaseUrl();
 
+  /// Returns the configured AI provider (with defaults for unset keys).
+  Future<AiConfig> getAiConfig() async {
+    _aiConfig = await rust_ai.getAiConfig();
+    return _aiConfig!;
+  }
+
+  /// Persists the AI provider configuration.
+  Future<void> setAiConfig(AiConfig config) async {
+    await rust_ai.setAiConfig(config: config);
+    _aiConfig = config;
+  }
+
+  /// Generates a summary for the selected article in the configured target
+  /// language. Caches the result in memory and (Rust-side) in the database.
+  Future<String> summarizeSelectedArticle() async {
+    final entry = _selectedEntry;
+    if (entry == null) {
+      throw const ReaderAppException('No article selected.');
+    }
+    _aiLoading = true;
+    _aiError = null;
+    notifyListeners();
+    try {
+      final result = await rust_ai.summarizeEntry(entryId: entry.id);
+      _aiResults['${entry.id}:summary'] = result;
+      _aiLoading = false;
+      aiViewMode = AiViewMode.summary;
+      return result;
+    } catch (e) {
+      _aiLoading = false;
+      _aiError = _describeAiError(e);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Translates the selected article into Simplified Chinese. Caches the result
+  /// in memory and (Rust-side) in the database.
+  Future<String> translateSelectedArticle() async {
+    final entry = _selectedEntry;
+    if (entry == null) {
+      throw const ReaderAppException('No article selected.');
+    }
+    _aiLoading = true;
+    _aiError = null;
+    notifyListeners();
+    try {
+      final result = await rust_ai.translateEntry(
+        entryId: entry.id,
+        targetLanguage: 'zh',
+      );
+      _aiResults['${entry.id}:translation'] = result;
+      _aiLoading = false;
+      aiViewMode = AiViewMode.translation;
+      return result;
+    } catch (e) {
+      _aiLoading = false;
+      _aiError = _describeAiError(e);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  static String _describeAiError(Object error) {
+    if (error is AppError) {
+      return switch (error) {
+        AppError_InvalidInput(:final field0) => field0,
+        AppError_Network(:final status, :final message) =>
+          'Network error ($status): $message',
+        AppError_NotFound(:final resource, :final id) =>
+          '$resource not found: $id',
+        _ => 'AI request failed: $error',
+      };
+    }
+    if (error is ReaderAppException) {
+      return error.message;
+    }
+    return error.toString();
+  }
+
+  /// Returns cached AI output for [entryId] and [mode], or `null` if not
+  /// present in the in-memory cache.
+  String? aiResultFor(String entryId, AiViewMode mode) {
+    final key = _aiResultKey(entryId, mode);
+    if (key == null) {
+      return null;
+    }
+    return _aiResults[key];
+  }
+
+  static String? _aiResultKey(String entryId, AiViewMode mode) {
+    return switch (mode) {
+      AiViewMode.original => null,
+      AiViewMode.summary => '$entryId:summary',
+      AiViewMode.translation => '$entryId:translation',
+    };
+  }
+
   Future<RefreshSummary> refreshFeeds() async {
     if (feeds.isEmpty) {
       throw const ReaderAppException('Add a feed before refreshing.');
@@ -491,6 +629,7 @@ class ReaderController extends ChangeNotifier {
       }
       _selectedEntryId = entryId;
       _selectedEntry = entry;
+      _aiViewMode = AiViewMode.original;
       _adjacent = await rust_entry.getAdjacentEntries(
         entryId: entryId,
         feedId: _selectedFeedId,
@@ -658,6 +797,8 @@ class ReaderController extends ChangeNotifier {
       isRead: isRead ?? entry.isRead,
       isStarred: isStarred ?? entry.isStarred,
       readProgress: entry.readProgress,
+      aiSummary: entry.aiSummary,
+      aiTranslationZh: entry.aiTranslationZh,
       createdAt: entry.createdAt,
     );
   }

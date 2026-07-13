@@ -17,19 +17,14 @@ use serde::{Deserialize, Serialize};
 /// `External` is escaped to `external_` in generated Dart because `external`
 /// is a Dart reserved word.
 #[flutter_rust_bridge::frb(unignore)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ArticleViewMode {
+    #[default]
     Global,
     Webpage,
     Rendered,
     External,
-}
-
-impl Default for ArticleViewMode {
-    fn default() -> Self {
-        Self::Global
-    }
 }
 
 /// What kind of source produced a subscription.
@@ -40,18 +35,13 @@ impl Default for ArticleViewMode {
 /// time. Persisted as lowercase `TEXT` in the `feeds.feed_type` column with
 /// `DEFAULT 'rss'` so pre-P3c rows migrate cleanly.
 #[flutter_rust_bridge::frb(unignore)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum FeedType {
+    #[default]
     Rss,
     Youtube,
     Rsshub,
-}
-
-impl Default for FeedType {
-    fn default() -> Self {
-        Self::Rss
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +140,8 @@ pub struct Entry {
     pub is_read: bool,
     pub is_starred: bool,
     pub read_progress: Option<f64>,
+    pub ai_summary: Option<String>,
+    pub ai_translation_zh: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -177,6 +169,27 @@ pub struct EntryDraft {
     pub summary: Option<String>,
     pub content: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
+}
+
+/// OpenAI-compatible AI provider configuration for summary/translation.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    pub endpoint: String,
+    pub model: String,
+    pub api_key: String,
+    pub target_language: String,
+}
+
+/// View mode for the AI-generated content panel inside the article detail view.
+#[flutter_rust_bridge::frb(unignore)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AiViewMode {
+    #[default]
+    Original,
+    Summary,
+    Translation,
 }
 
 /// Previous/next entry ids within a filter context, used for prev/next

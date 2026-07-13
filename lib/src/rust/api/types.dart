@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Previous/next entry ids within a filter context, used for prev/next
 /// navigation in the reading UI. The list is ordered by `published_at DESC`
@@ -28,6 +28,48 @@ class AdjacentEntries {
           runtimeType == other.runtimeType &&
           prev == other.prev &&
           next == other.next;
+}
+
+/// OpenAI-compatible AI provider configuration for summary/translation.
+class AiConfig {
+  final String endpoint;
+  final String model;
+  final String apiKey;
+  final String targetLanguage;
+
+  const AiConfig({
+    required this.endpoint,
+    required this.model,
+    required this.apiKey,
+    required this.targetLanguage,
+  });
+
+  @override
+  int get hashCode =>
+      endpoint.hashCode ^
+      model.hashCode ^
+      apiKey.hashCode ^
+      targetLanguage.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AiConfig &&
+          runtimeType == other.runtimeType &&
+          endpoint == other.endpoint &&
+          model == other.model &&
+          apiKey == other.apiKey &&
+          targetLanguage == other.targetLanguage;
+}
+
+/// View mode for the AI-generated content panel inside the article detail view.
+enum AiViewMode {
+  original,
+  summary,
+  translation;
+
+  static Future<AiViewMode> default_() =>
+      RustLib.instance.api.crateApiTypesAiViewModeDefault();
 }
 
 /// How a feed's articles should be displayed.
@@ -77,6 +119,8 @@ class Entry {
   final bool isRead;
   final bool isStarred;
   final double? readProgress;
+  final String? aiSummary;
+  final String? aiTranslationZh;
   final DateTime createdAt;
 
   const Entry({
@@ -92,6 +136,8 @@ class Entry {
     required this.isRead,
     required this.isStarred,
     this.readProgress,
+    this.aiSummary,
+    this.aiTranslationZh,
     required this.createdAt,
   });
 
@@ -109,6 +155,8 @@ class Entry {
       isRead.hashCode ^
       isStarred.hashCode ^
       readProgress.hashCode ^
+      aiSummary.hashCode ^
+      aiTranslationZh.hashCode ^
       createdAt.hashCode;
 
   @override
@@ -128,6 +176,8 @@ class Entry {
           isRead == other.isRead &&
           isStarred == other.isStarred &&
           readProgress == other.readProgress &&
+          aiSummary == other.aiSummary &&
+          aiTranslationZh == other.aiTranslationZh &&
           createdAt == other.createdAt;
 }
 

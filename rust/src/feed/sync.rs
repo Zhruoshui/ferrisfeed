@@ -113,11 +113,7 @@ async fn sync_one_feed(feed_id: &str) -> (i32, Option<String>, Option<String>) {
     let feed = match with_db(|conn| repositories::feed::get_feed_by_id(conn, feed_id)) {
         Ok(Some(f)) => f,
         Ok(None) => {
-            return (
-                0,
-                None,
-                Some(format!("feed not found: {feed_id}")),
-            );
+            return (0, None, Some(format!("feed not found: {feed_id}")));
         }
         Err(e) => {
             return (0, None, Some(e.to_string()));
@@ -133,9 +129,7 @@ async fn sync_one_feed(feed_id: &str) -> (i32, Option<String>, Option<String>) {
         }
         Err(e) => {
             let msg = e.to_string();
-            let _ = with_db(|conn| {
-                repositories::feed::record_sync_error(conn, feed_id, &msg)
-            });
+            let _ = with_db(|conn| repositories::feed::record_sync_error(conn, feed_id, &msg));
             (0, Some(title), Some(msg))
         }
     }
@@ -458,8 +452,18 @@ mod tests {
         // Two entries with unrelated content (so simhash does not skip either)
         // and distinct guids.
         let drafts = vec![
-            to_sync_draft(parsed("First", "https://a/1", Some("g1"), Some(LONG_CONTENT_A))),
-            to_sync_draft(parsed("Second", "https://a/2", Some("g2"), Some(LONG_CONTENT_UNRELATED))),
+            to_sync_draft(parsed(
+                "First",
+                "https://a/1",
+                Some("g1"),
+                Some(LONG_CONTENT_A),
+            )),
+            to_sync_draft(parsed(
+                "Second",
+                "https://a/2",
+                Some("g2"),
+                Some(LONG_CONTENT_UNRELATED),
+            )),
         ];
         let fps = draft_fps(&drafts);
 
@@ -474,7 +478,9 @@ mod tests {
         // Still only two rows, and feed counts are correct.
         let existing = repositories::entry::list_entries_for_dedup(&conn, "f1").unwrap();
         assert_eq!(existing.len(), 2);
-        let feed = repositories::feed::get_feed_by_id(&conn, "f1").unwrap().unwrap();
+        let feed = repositories::feed::get_feed_by_id(&conn, "f1")
+            .unwrap()
+            .unwrap();
         assert_eq!(feed.article_count, 2);
     }
 
@@ -517,7 +523,12 @@ mod tests {
         let conn = test_db();
         repositories::feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
 
-        let mut entry = parsed("With media", "https://a/1", Some("guid-1"), Some(LONG_CONTENT_A));
+        let mut entry = parsed(
+            "With media",
+            "https://a/1",
+            Some("guid-1"),
+            Some(LONG_CONTENT_A),
+        );
         entry.media.push(MediaItem {
             url: "https://a/img.jpg".to_string(),
             mime_type: Some("image/jpeg".to_string()),
@@ -532,7 +543,12 @@ mod tests {
             .query_row(
                 "SELECT guid, media FROM entries WHERE feed_id = ?1",
                 rusqlite::params!["f1"],
-                |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?)),
+                |r| {
+                    Ok((
+                        r.get::<_, Option<String>>(0)?,
+                        r.get::<_, Option<String>>(1)?,
+                    ))
+                },
             )
             .unwrap();
         assert_eq!(row.0.as_deref(), Some("guid-1"));
@@ -547,8 +563,18 @@ mod tests {
         repositories::feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
 
         let drafts = vec![
-            to_sync_draft(parsed("Tech news", "https://a/1", Some("g1"), Some(LONG_CONTENT_A))),
-            to_sync_draft(parsed("Space news", "https://a/2", Some("g2"), Some(LONG_CONTENT_UNRELATED))),
+            to_sync_draft(parsed(
+                "Tech news",
+                "https://a/1",
+                Some("g1"),
+                Some(LONG_CONTENT_A),
+            )),
+            to_sync_draft(parsed(
+                "Space news",
+                "https://a/2",
+                Some("g2"),
+                Some(LONG_CONTENT_UNRELATED),
+            )),
         ];
         let inserted = dedup_and_insert(&conn, "f1", &drafts, &draft_fps(&drafts)).unwrap();
         assert_eq!(inserted, 2, "unrelated entries should both be accepted");
@@ -567,8 +593,8 @@ mod tests {
     async fn refresh_real_feed_end_to_end() {
         use crate::db::connection::{init_db, with_db};
 
-        let path = std::env::temp_dir()
-            .join(format!("rss_reader_p1b_smoke_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("rss_reader_p1b_smoke_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-wal"));
         let _ = std::fs::remove_file(path.with_extension("db-shm"));

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
+import 'package:rss_reader/src/app/ai_panel.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/rust/api/types.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -99,6 +100,23 @@ class _RenderedArticleView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               header,
+              AiPanel(
+                entry: entry,
+                mode: controller.aiViewMode,
+                loading: controller.aiLoading,
+                error: controller.aiError,
+                cachedSummary: controller.aiResultFor(
+                  entry.id,
+                  AiViewMode.summary,
+                ),
+                cachedTranslation: controller.aiResultFor(
+                  entry.id,
+                  AiViewMode.translation,
+                ),
+                onSummarize: controller.summarizeSelectedArticle,
+                onTranslate: controller.translateSelectedArticle,
+                onSwitchMode: (mode) => controller.aiViewMode = mode,
+              ),
               if (html.isNotEmpty) _ReadingFontControls(controller: controller),
               if (html.isEmpty)
                 Text(

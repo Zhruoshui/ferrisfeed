@@ -9,11 +9,7 @@ use url::Url;
 
 /// Returns a display title, falling back to the site URL host, then the feed
 /// URL when the parsed title is empty/blank.
-pub(crate) fn normalize_feed_title(
-    title: &str,
-    site_url: Option<&str>,
-    feed_url: &str,
-) -> String {
+pub(crate) fn normalize_feed_title(title: &str, site_url: Option<&str>, feed_url: &str) -> String {
     let trimmed = title.trim();
     if !trimmed.is_empty() {
         return trimmed.to_string();

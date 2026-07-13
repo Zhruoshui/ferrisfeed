@@ -30,8 +30,8 @@ fn client() -> &'static reqwest::Client {
 /// becomes `AppError::Network { url, status, message }`; transport errors
 /// (DNS, timeout, TLS) also become `Network` with `status = 0`.
 pub(crate) async fn fetch_url(url: &str) -> Result<(Vec<u8>, String), AppError> {
-    let parsed = url::Url::parse(url)
-        .map_err(|e| AppError::invalid_input(format!("invalid URL: {e}")))?;
+    let parsed =
+        url::Url::parse(url).map_err(|e| AppError::invalid_input(format!("invalid URL: {e}")))?;
     if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return Err(AppError::invalid_input("URL must use http or https"));
     }
@@ -73,14 +73,11 @@ pub(crate) async fn fetch_url(url: &str) -> Result<(Vec<u8>, String), AppError> 
         .unwrap_or("")
         .to_string();
 
-    let bytes = resp
-        .bytes()
-        .await
-        .map_err(|e| AppError::Network {
-            url: url.to_string(),
-            status: 0,
-            message: e.to_string(),
-        })?;
+    let bytes = resp.bytes().await.map_err(|e| AppError::Network {
+        url: url.to_string(),
+        status: 0,
+        message: e.to_string(),
+    })?;
 
     Ok((bytes.to_vec(), content_type))
 }

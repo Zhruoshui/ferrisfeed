@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:rss_reader/src/app/ai_settings_dialog.dart';
 import 'package:rss_reader/src/app/article_detail_view.dart';
 import 'package:rss_reader/src/app/reader_controller.dart';
 import 'package:rss_reader/src/app/reader_repository.dart';
@@ -130,6 +131,11 @@ class _ReaderHomeState extends State<ReaderHome> {
                     value: _ReaderMenuAction.rsshubSettings,
                     enabled: !controller.isWorking,
                     child: const Text('RSSHub settings…'),
+                  ),
+                  PopupMenuItem(
+                    value: _ReaderMenuAction.aiSettings,
+                    enabled: !controller.isWorking,
+                    child: const Text('AI settings…'),
                   ),
                   const PopupMenuDivider(),
                   PopupMenuItem(
@@ -458,6 +464,15 @@ class _ReaderHomeState extends State<ReaderHome> {
     );
   }
 
+  Future<void> _showAiSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AiSettingsDialog(controller: widget.controller);
+      },
+    );
+  }
+
   Future<void> _showSearch() async {
     final selectedId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -582,6 +597,9 @@ class _ReaderHomeState extends State<ReaderHome> {
         return;
       case _ReaderMenuAction.rsshubSettings:
         await _showRsshubSettingsDialog();
+        return;
+      case _ReaderMenuAction.aiSettings:
+        await _showAiSettingsDialog();
         return;
       case _ReaderMenuAction.removeFeed:
         final feed = controller.selectedFeed;
@@ -1446,6 +1464,38 @@ class _ArticleDetailHeader extends StatelessWidget {
                 tooltip: 'Open in browser',
                 onPressed: () => openInSystemBrowser(article.url),
                 icon: const Icon(Icons.open_in_new),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Summarize',
+                onPressed: () async {
+                  try {
+                    await controller.summarizeSelectedArticle();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Summary generated.')),
+                      );
+                    }
+                  } catch (_) {
+                    // Error is shown inline in the AI panel.
+                  }
+                },
+                icon: const Icon(Icons.short_text),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Translate',
+                onPressed: () async {
+                  try {
+                    await controller.translateSelectedArticle();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Translation generated.')),
+                      );
+                    }
+                  } catch (_) {
+                    // Error is shown inline in the AI panel.
+                  }
+                },
+                icon: const Icon(Icons.translate),
               ),
             ],
           ),
@@ -2485,6 +2535,7 @@ enum _ReaderMenuAction {
   importOpml,
   exportOpml,
   rsshubSettings,
+  aiSettings,
   removeFeed,
   feedViewMode,
   defaultViewMode,

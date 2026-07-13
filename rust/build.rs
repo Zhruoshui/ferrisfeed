@@ -41,8 +41,7 @@ fn link_clang_rt_builtins_x86_64_android() {
     // The builtins library lives at:
     //   <ndk>/toolchains/llvm/prebuilt/<host-tag>/lib/clang/<version>/lib/linux/
     // The <host-tag> and <version> directories vary by NDK release, so walk them.
-    let prebuilt = PathBuf::from(&ndk_home)
-        .join("toolchains/llvm/prebuilt");
+    let prebuilt = PathBuf::from(&ndk_home).join("toolchains/llvm/prebuilt");
 
     for host_tag in read_subdirs(&prebuilt) {
         let clang_dir = prebuilt.join(&host_tag).join("lib/clang");

@@ -111,8 +111,7 @@ pub(crate) async fn subscribe_feed_with_provider(
     // directly on the tokio worker thread. The mutex guard is never held across
     // an `.await` (with_db locks and releases synchronously).
     with_db(|conn| {
-        if let Some(existing) =
-            repositories::feed::get_feed_by_source_url(conn, &feed.source_url)?
+        if let Some(existing) = repositories::feed::get_feed_by_source_url(conn, &feed.source_url)?
         {
             return Ok(existing);
         }

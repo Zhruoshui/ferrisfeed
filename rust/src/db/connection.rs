@@ -68,5 +68,5 @@ where
         .get()
         .ok_or_else(|| AppError::database("database not initialized"))?;
     let guard = mutex.lock();
-    f(&*guard)
+    f(&guard)
 }

@@ -158,11 +158,7 @@ pub fn record_sync_success(conn: &Connection, feed_id: &str) -> Result<(), AppEr
 
 /// Records a failed sync: stamps `last_synced_at`, stores the error message in
 /// `last_error`, and increments `error_count`.
-pub fn record_sync_error(
-    conn: &Connection,
-    feed_id: &str,
-    message: &str,
-) -> Result<(), AppError> {
+pub fn record_sync_error(conn: &Connection, feed_id: &str, message: &str) -> Result<(), AppError> {
     conn.execute(
         "UPDATE feeds SET last_synced_at = ?1, last_error = ?2, error_count = error_count + 1
          WHERE id = ?3",

@@ -110,10 +110,7 @@ pub async fn subscribe_feed(url: String) -> Result<Feed, AppError> {
 /// Idempotent on the generated URL (delegates to [`subscribe_feed`], which is
 /// idempotent on `source_url`).
 #[flutter_rust_bridge::frb]
-pub async fn subscribe_special(
-    provider_id: String,
-    input: String,
-) -> Result<Feed, AppError> {
+pub async fn subscribe_special(provider_id: String, input: String) -> Result<Feed, AppError> {
     // URL generation is a single settings-lookup + string build; the mutex is
     // released before we start the async fetch.
     let (url, feed_type) = with_db(|conn| {

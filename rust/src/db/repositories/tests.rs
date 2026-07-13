@@ -108,8 +108,12 @@ fn feed_view_mode_round_trips() {
 fn feed_delete_cascades_to_entries() {
     let conn = test_db();
     feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
-    entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1"), draft("b", "https://a/2")])
-        .unwrap();
+    entry::upsert_entries(
+        &conn,
+        "f1",
+        &[draft("a", "https://a/1"), draft("b", "https://a/2")],
+    )
+    .unwrap();
 
     feed::delete_feed(&conn, "f1").unwrap();
     assert!(feed::get_feed_by_id(&conn, "f1").unwrap().is_none());
@@ -126,7 +130,10 @@ fn entry_upsert_dedups_by_url() {
     let inserted = entry::upsert_entries(
         &conn,
         "f1",
-        &[draft("first", "https://a/1"), draft("second", "https://a/2")],
+        &[
+            draft("first", "https://a/1"),
+            draft("second", "https://a/2"),
+        ],
     )
     .unwrap();
     assert_eq!(inserted, 2);
@@ -241,7 +248,9 @@ fn entry_list_paginates_with_limit_and_offset() {
     assert_eq!(page3[0].title, "e0");
 
     // offset past the end is empty.
-    assert!(entry::list_entries(&conn, None, false, false, 2, 6).unwrap().is_empty());
+    assert!(entry::list_entries(&conn, None, false, false, 2, 6)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -249,7 +258,9 @@ fn toggle_entry_star_returns_new_state() {
     let conn = test_db();
     feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
     entry::upsert_entries(&conn, "f1", &[draft("a", "https://a/1")]).unwrap();
-    let id = entry::list_entries(&conn, None, false, false, 50, 0).unwrap()[0].id.clone();
+    let id = entry::list_entries(&conn, None, false, false, 50, 0).unwrap()[0]
+        .id
+        .clone();
 
     // Fresh entries are un-starred; toggling flips to starred.
     let now_starred = entry::toggle_entry_star(&conn, &id).unwrap();
@@ -360,8 +371,8 @@ fn adjacent_entries_unknown_id_returns_none() {
 #[test]
 fn entry_fk_constraint_rejects_orphan_feed_id() {
     let conn = test_db();
-    let err = entry::upsert_entries(&conn, "no-such-feed", &[draft("a", "https://a/1")])
-        .unwrap_err();
+    let err =
+        entry::upsert_entries(&conn, "no-such-feed", &[draft("a", "https://a/1")]).unwrap_err();
     assert!(matches!(err, AppError::Database(_)), "got {err:?}");
 }
 
@@ -390,10 +401,22 @@ fn mark_all_read_updates_counts() {
 fn category_crud_roundtrip() {
     let conn = test_db();
     use crate::api::types::Category;
-    category::upsert_category(&conn, &Category { id: "c1".to_owned(), title: "News".to_owned() })
-        .unwrap();
-    category::upsert_category(&conn, &Category { id: "c2".to_owned(), title: "Tech".to_owned() })
-        .unwrap();
+    category::upsert_category(
+        &conn,
+        &Category {
+            id: "c1".to_owned(),
+            title: "News".to_owned(),
+        },
+    )
+    .unwrap();
+    category::upsert_category(
+        &conn,
+        &Category {
+            id: "c2".to_owned(),
+            title: "Tech".to_owned(),
+        },
+    )
+    .unwrap();
 
     let listed = category::list_categories(&conn).unwrap();
     assert_eq!(listed.len(), 2);
@@ -401,8 +424,14 @@ fn category_crud_roundtrip() {
     assert_eq!(listed[0].id, "c1");
 
     // Update via upsert.
-    category::upsert_category(&conn, &Category { id: "c1".to_owned(), title: "World".to_owned() })
-        .unwrap();
+    category::upsert_category(
+        &conn,
+        &Category {
+            id: "c1".to_owned(),
+            title: "World".to_owned(),
+        },
+    )
+    .unwrap();
     let fetched = category::list_categories(&conn).unwrap();
     let c1 = fetched.iter().find(|c| c.id == "c1").unwrap();
     assert_eq!(c1.title, "World");
@@ -513,8 +542,12 @@ fn search_entries_empty_query_returns_empty() {
     feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
     entry::upsert_entries(&conn, "f1", &[draft("Some title", "https://a/1")]).unwrap();
 
-    assert!(entry::search_entries(&conn, "", None, 50).unwrap().is_empty());
-    assert!(entry::search_entries(&conn, "   ", None, 50).unwrap().is_empty());
+    assert!(entry::search_entries(&conn, "", None, 50)
+        .unwrap()
+        .is_empty());
+    assert!(entry::search_entries(&conn, "   ", None, 50)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -522,7 +555,13 @@ fn search_entries_respects_limit() {
     let conn = test_db();
     feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
     let drafts: Vec<EntryDraft> = (0..5)
-        .map(|i| draft_at(&format!("keyword-{i}"), &format!("https://a/{i}"), 1_000_000 + i))
+        .map(|i| {
+            draft_at(
+                &format!("keyword-{i}"),
+                &format!("https://a/{i}"),
+                1_000_000 + i,
+            )
+        })
         .collect();
     entry::upsert_entries(&conn, "f1", &drafts).unwrap();
 
@@ -540,7 +579,9 @@ fn search_entries_no_match_returns_empty() {
     feed::upsert_feed(&conn, &sample_feed("f1", "https://a/feed")).unwrap();
     entry::upsert_entries(&conn, "f1", &[draft("Hello World", "https://a/1")]).unwrap();
 
-    assert!(entry::search_entries(&conn, "nonexistent", None, 50).unwrap().is_empty());
+    assert!(entry::search_entries(&conn, "nonexistent", None, 50)
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -551,8 +592,7 @@ fn init_db_then_with_db_round_trips() {
     // is the only test that touches `init_db`/`with_db`.
     use crate::db::connection::{init_db, with_db};
 
-    let path = std::env::temp_dir()
-        .join(format!("rss_reader_p0b_test_{}.db", std::process::id()));
+    let path = std::env::temp_dir().join(format!("rss_reader_p0b_test_{}.db", std::process::id()));
     let _ = std::fs::remove_file(&path);
     let _ = std::fs::remove_file(path.with_extension("db-wal"));
     let _ = std::fs::remove_file(path.with_extension("db-shm"));
@@ -561,13 +601,10 @@ fn init_db_then_with_db_round_trips() {
 
     let feed = sample_feed("f1", "https://example.com/feed.xml");
     with_db(|conn| feed::upsert_feed(conn, &feed)).unwrap();
-    with_db(|conn| {
-        entry::upsert_entries(conn, "f1", &[draft("a", "https://example.com/1")])
-    })
-    .unwrap();
+    with_db(|conn| entry::upsert_entries(conn, "f1", &[draft("a", "https://example.com/1")]))
+        .unwrap();
 
-    let listed =
-        with_db(|conn| entry::list_entries(conn, None, false, false, 50, 0)).unwrap();
+    let listed = with_db(|conn| entry::list_entries(conn, None, false, false, 50, 0)).unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].feed_title, "Feed f1");
 

@@ -65,7 +65,10 @@ pub(crate) fn compute(input: &SimhashInput) -> Option<u64> {
         let lengths = lengths_key(input);
         let cached = {
             let guard = cache().lock();
-            guard.get(id).filter(|e| e.lengths_key == lengths).map(|e| e.fingerprint)
+            guard
+                .get(id)
+                .filter(|e| e.lengths_key == lengths)
+                .map(|e| e.fingerprint)
         };
         if let Some(fp) = cached {
             return fp;
@@ -75,12 +78,19 @@ pub(crate) fn compute(input: &SimhashInput) -> Option<u64> {
         if guard.len() >= SIMHASH_CACHE_MAX {
             // Evict ~half the entries (the cache is an optimization only;
             // eviction order is arbitrary, matching Livo's "clear half" intent).
-            let to_remove: Vec<String> = guard.keys().take(SIMHASH_CACHE_MAX / 2).cloned().collect();
+            let to_remove: Vec<String> =
+                guard.keys().take(SIMHASH_CACHE_MAX / 2).cloned().collect();
             for key in to_remove {
                 guard.remove(&key);
             }
         }
-        guard.insert(id.to_string(), CacheEntry { lengths_key: lengths, fingerprint: fp });
+        guard.insert(
+            id.to_string(),
+            CacheEntry {
+                lengths_key: lengths,
+                fingerprint: fp,
+            },
+        );
         fp
     } else {
         compute_uncached(input)
@@ -118,7 +128,11 @@ fn compute_uncached(input: &SimhashInput) -> Option<u64> {
     for i in 0..tokens.len() {
         add_feature(format!("1:{}", tokens[i]), 1, &mut weights);
         if i + 1 < tokens.len() {
-            add_feature(format!("2:{}\0{}", tokens[i], tokens[i + 1]), 2, &mut weights);
+            add_feature(
+                format!("2:{}\0{}", tokens[i], tokens[i + 1]),
+                2,
+                &mut weights,
+            );
         }
         if i + 2 < tokens.len() {
             add_feature(
@@ -152,8 +166,16 @@ fn add_feature(feature: String, weight: i32, weights: &mut [i32; HASH_BITS]) {
     let hi = u32::from_be_bytes([digest[0], digest[1], digest[2], digest[3]]);
     let lo = u32::from_be_bytes([digest[4], digest[5], digest[6], digest[7]]);
     for bit in 0..32u32 {
-        weights[bit as usize] += if (lo >> bit) & 1 == 1 { weight } else { -weight };
-        weights[bit as usize + 32] += if (hi >> bit) & 1 == 1 { weight } else { -weight };
+        weights[bit as usize] += if (lo >> bit) & 1 == 1 {
+            weight
+        } else {
+            -weight
+        };
+        weights[bit as usize + 32] += if (hi >> bit) & 1 == 1 {
+            weight
+        } else {
+            -weight
+        };
     }
 }
 
@@ -207,8 +229,18 @@ fn token_re() -> &'static Regex {
 mod tests {
     use super::*;
 
-    fn input<'a>(id: Option<&'a str>, title: &'a str, summary: Option<&'a str>, content: Option<&'a str>) -> SimhashInput<'a> {
-        SimhashInput { id, title, summary, content }
+    fn input<'a>(
+        id: Option<&'a str>,
+        title: &'a str,
+        summary: Option<&'a str>,
+        content: Option<&'a str>,
+    ) -> SimhashInput<'a> {
+        SimhashInput {
+            id,
+            title,
+            summary,
+            content,
+        }
     }
 
     #[test]
@@ -223,8 +255,15 @@ mod tests {
     fn near_duplicate_threshold() {
         // 9 bits differ -> near-dup.
         let a = 0u64;
-        let b = (1u64 << 0) | (1u64 << 1) | (1u64 << 2) | (1u64 << 3) | (1u64 << 4)
-            | (1u64 << 5) | (1u64 << 6) | (1u64 << 7) | (1u64 << 8);
+        let b = (1u64 << 0)
+            | (1u64 << 1)
+            | (1u64 << 2)
+            | (1u64 << 3)
+            | (1u64 << 4)
+            | (1u64 << 5)
+            | (1u64 << 6)
+            | (1u64 << 7)
+            | (1u64 << 8);
         assert_eq!(hamming_distance(a, b), 9);
         assert!(is_near_duplicate(a, b));
         // 10 bits differ -> not near-dup.
@@ -243,7 +282,8 @@ mod tests {
     fn identical_text_produces_identical_fingerprint() {
         let title = "Breaking news from the technology sector today";
         let summary = "A detailed summary of the events that unfolded during the conference";
-        let content = "Full article body with plenty of words to exceed the minimum token count easily";
+        let content =
+            "Full article body with plenty of words to exceed the minimum token count easily";
         let a = compute(&input(None, title, Some(summary), Some(content)));
         let b = compute(&input(None, title, Some(summary), Some(content)));
         assert!(a.is_some());
@@ -275,16 +315,20 @@ mod tests {
         let a = compute(&input(
             None,
             "Technology conference highlights",
-            Some("Apple announced new products at the developer conference today \
-                  including software updates hardware revisions and services"),
+            Some(
+                "Apple announced new products at the developer conference today \
+                  including software updates hardware revisions and services",
+            ),
             None,
         ))
         .unwrap();
         let b = compute(&input(
             None,
             "Local sports results",
-            Some("The hometown team won the championship game last night with a \
-                  final score that surprised everyone watching the match"),
+            Some(
+                "The hometown team won the championship game last night with a \
+                  final score that surprised everyone watching the match",
+            ),
             None,
         ))
         .unwrap();
@@ -322,7 +366,12 @@ mod tests {
         let first = compute(&input(Some(id), title, Some(summary), None));
         // Mutate then restore to a different entry to ensure the cache is hit.
         let other_id = "test-entry-cache-2";
-        let _ = compute(&input(Some(other_id), "Different", Some("Different content"), None));
+        let _ = compute(&input(
+            Some(other_id),
+            "Different",
+            Some("Different content"),
+            None,
+        ));
         let second = compute(&input(Some(id), title, Some(summary), None));
         assert_eq!(first, second);
     }

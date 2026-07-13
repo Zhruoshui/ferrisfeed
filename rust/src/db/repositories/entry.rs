@@ -46,7 +46,13 @@ pub fn list_entries(
          LIMIT ?4 OFFSET ?5",
     )?;
     let rows = stmt.query_map(
-        params![feed_id, unread_only as i64, starred_only as i64, limit, offset],
+        params![
+            feed_id,
+            unread_only as i64,
+            starred_only as i64,
+            limit,
+            offset
+        ],
         entry_list_item_from_row,
     )?;
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -64,13 +70,11 @@ pub fn upsert_entries(
     let now_ms = Utc::now().timestamp_millis();
     let mut inserted = 0;
     for draft in drafts {
-        let exists: bool = conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM entries WHERE feed_id = ?1 AND url = ?2)",
-                params![feed_id, draft.url],
-                |row| row.get::<_, i64>(0),
-            )?
-            != 0;
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM entries WHERE feed_id = ?1 AND url = ?2)",
+            params![feed_id, draft.url],
+            |row| row.get::<_, i64>(0),
+        )? != 0;
         if exists {
             continue;
         }
@@ -120,8 +124,10 @@ pub fn mark_entry_read(conn: &Connection, id: &str, is_read: bool) -> Result<(),
 }
 
 pub fn toggle_entry_star(conn: &Connection, id: &str) -> Result<bool, AppError> {
-    let affected =
-        conn.execute("UPDATE entries SET is_starred = 1 - is_starred WHERE id = ?1", params![id])?;
+    let affected = conn.execute(
+        "UPDATE entries SET is_starred = 1 - is_starred WHERE id = ?1",
+        params![id],
+    )?;
     if affected == 0 {
         return Err(AppError::not_found("entry", id));
     }
@@ -172,7 +178,13 @@ pub fn get_adjacent_entries(
                AND (e.published_at > ?4 OR (e.published_at = ?4 AND e.id > ?5))
              ORDER BY e.published_at ASC, e.id ASC
              LIMIT 1",
-            params![feed_id, unread_only as i64, starred_only as i64, current_ms, id],
+            params![
+                feed_id,
+                unread_only as i64,
+                starred_only as i64,
+                current_ms,
+                id
+            ],
             |row| row.get::<_, String>(0),
         )
         .ok();
@@ -188,7 +200,13 @@ pub fn get_adjacent_entries(
                AND (e.published_at < ?4 OR (e.published_at = ?4 AND e.id < ?5))
              ORDER BY e.published_at DESC, e.id DESC
              LIMIT 1",
-            params![feed_id, unread_only as i64, starred_only as i64, current_ms, id],
+            params![
+                feed_id,
+                unread_only as i64,
+                starred_only as i64,
+                current_ms,
+                id
+            ],
             |row| row.get::<_, String>(0),
         )
         .ok();
@@ -352,8 +370,57 @@ fn entry_from_row(row: &Row) -> Result<Entry, rusqlite::Error> {
         is_read: row.get::<_, i64>("is_read")? != 0,
         is_starred: row.get::<_, i64>("is_starred")? != 0,
         read_progress: None,
+        ai_summary: row.get("ai_summary")?,
+        ai_translation_zh: row.get("ai_translation_zh")?,
         created_at: DateTime::from_timestamp_millis(created_ms).unwrap_or_else(Utc::now),
     })
+}
+
+/// Returns the AI-generated text columns for an entry.
+pub fn get_entry_ai_text(
+    conn: &Connection,
+    id: &str,
+) -> Result<(Option<String>, Option<String>), AppError> {
+    let mut stmt =
+        conn.prepare("SELECT ai_summary, ai_translation_zh FROM entries WHERE id = ?1")?;
+    let mut rows = stmt.query_map(params![id], |row| {
+        Ok((
+            row.get::<_, Option<String>>(0)?,
+            row.get::<_, Option<String>>(1)?,
+        ))
+    })?;
+    match rows.next() {
+        Some(row) => Ok(row?),
+        None => Err(AppError::not_found("entry", id)),
+    }
+}
+
+/// Persists an AI-generated summary for an entry.
+pub fn set_entry_ai_summary(conn: &Connection, id: &str, value: &str) -> Result<(), AppError> {
+    let affected = conn.execute(
+        "UPDATE entries SET ai_summary = ?1 WHERE id = ?2",
+        params![value, id],
+    )?;
+    if affected == 0 {
+        return Err(AppError::not_found("entry", id));
+    }
+    Ok(())
+}
+
+/// Persists an AI-generated Simplified Chinese translation for an entry.
+pub fn set_entry_ai_translation_zh(
+    conn: &Connection,
+    id: &str,
+    value: &str,
+) -> Result<(), AppError> {
+    let affected = conn.execute(
+        "UPDATE entries SET ai_translation_zh = ?1 WHERE id = ?2",
+        params![value, id],
+    )?;
+    if affected == 0 {
+        return Err(AppError::not_found("entry", id));
+    }
+    Ok(())
 }
 
 fn entry_list_item_from_row(row: &Row) -> Result<EntryListItem, rusqlite::Error> {

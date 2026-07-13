@@ -11,7 +11,7 @@
 //! upgrade. Each statement uses `IF NOT EXISTS` so the migration is idempotent.
 
 use rusqlite::Connection;
-use rusqlite_migration::{M, Migrations};
+use rusqlite_migration::{Migrations, M};
 
 use crate::api::AppError;
 
@@ -105,6 +105,13 @@ ALTER TABLE feeds ADD COLUMN feed_type TEXT NOT NULL DEFAULT 'rss';
 ALTER TABLE feeds ADD COLUMN provider_input TEXT;
 "#;
 
+/// v4: adds AI-generated summary/translation columns to `entries` for P4.
+/// Both are nullable `TEXT`; existing rows simply return `None` for AI fields.
+const V4_AI_COLUMNS: &str = r#"
+ALTER TABLE entries ADD COLUMN ai_summary TEXT;
+ALTER TABLE entries ADD COLUMN ai_translation_zh TEXT;
+"#;
+
 /// Runs all pending migrations against `conn`, bringing it to the latest
 /// schema version. Safe to call on a fresh database and on an already-current
 /// one (idempotent).
@@ -113,6 +120,7 @@ pub fn run(conn: &mut Connection) -> Result<(), AppError> {
         M::up(V1_INIT),
         M::up(V2_FEED_METADATA),
         M::up(V3_SETTINGS_AND_PROVIDER),
+        M::up(V4_AI_COLUMNS),
     ]);
     migrations
         .to_latest(conn)

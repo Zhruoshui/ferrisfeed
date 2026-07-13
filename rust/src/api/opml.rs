@@ -19,7 +19,7 @@ use crate::db::connection::with_db;
 use crate::db::repositories;
 use crate::feed;
 
-use opml::{Body, Head, OPML, Outline};
+use opml::{Body, Head, Outline, OPML};
 
 /// A feed entry extracted from an OPML outline (internal, not FRB-exposed).
 struct OpmlFeedEntry {
@@ -60,9 +60,8 @@ pub async fn import_opml(xml: String) -> Result<ImportReport, AppError> {
     for entry in &entries {
         // Pre-check: if already subscribed, skip the HTTP fetch and just apply
         // the folder/category from the OPML. This makes re-imports fast.
-        let existing = with_db(|conn| {
-            repositories::feed::get_feed_by_source_url(conn, &entry.url)
-        })?;
+        let existing =
+            with_db(|conn| repositories::feed::get_feed_by_source_url(conn, &entry.url))?;
         if let Some(feed) = existing {
             apply_folder(&feed.id, entry);
             skipped += 1;
@@ -126,7 +125,11 @@ fn parse_opml(xml: &str) -> Result<OPML, AppError> {
 
 /// Returns `Some(s)` if `s` is non-empty, `None` otherwise.
 fn non_empty(s: String) -> Option<String> {
-    if s.is_empty() { None } else { Some(s) }
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// Recursively walks the OPML outline tree, collecting every `<outline
@@ -151,19 +154,13 @@ fn collect_outlines(
     if let Some(url) = &outline.xml_url {
         if !url.is_empty() && seen.insert(url.clone()) {
             let folder_name = folder.map(|s| s.to_string());
-            let category = outline
-                .category
-                .clone()
-                .filter(|s| !s.is_empty());
+            let category = outline.category.clone().filter(|s| !s.is_empty());
             let title = outline
                 .title
                 .clone()
                 .filter(|s| !s.is_empty())
                 .or_else(|| non_empty(outline.text.clone()));
-            let html_url = outline
-                .html_url
-                .clone()
-                .filter(|s| !s.is_empty());
+            let html_url = outline.html_url.clone().filter(|s| !s.is_empty());
             entries.push(OpmlFeedEntry {
                 url: url.clone(),
                 title,
@@ -209,9 +206,7 @@ fn build_opml_from_feeds(feeds: &[Feed]) -> OPML {
     for feed in feeds {
         match feed.folder.as_ref().filter(|f| !f.is_empty()) {
             Some(folder) => {
-                if let Some((_, group)) =
-                    folder_groups.iter_mut().find(|(f, _)| f == folder)
-                {
+                if let Some((_, group)) = folder_groups.iter_mut().find(|(f, _)| f == folder) {
                     group.push(feed);
                 } else {
                     folder_groups.push((folder.clone(), vec![feed]));
@@ -338,7 +333,10 @@ mod tests {
         assert_eq!(entries.len(), 3);
 
         // The two News feeds have folder = "News".
-        let news_feeds: Vec<_> = entries.iter().filter(|e| e.folder.as_deref() == Some("News")).collect();
+        let news_feeds: Vec<_> = entries
+            .iter()
+            .filter(|e| e.folder.as_deref() == Some("News"))
+            .collect();
         assert_eq!(news_feeds.len(), 2);
 
         // The top-level feed has no folder.
@@ -399,7 +397,10 @@ mod tests {
         assert_eq!(entries.len(), 3);
 
         // Two feeds under "News", one at top level.
-        let news = entries.iter().filter(|e| e.folder.as_deref() == Some("News")).count();
+        let news = entries
+            .iter()
+            .filter(|e| e.folder.as_deref() == Some("News"))
+            .count();
         assert_eq!(news, 2);
         let top = entries.iter().filter(|e| e.folder.is_none()).count();
         assert_eq!(top, 1);
@@ -429,11 +430,20 @@ mod tests {
         assert!(urls.contains(&"https://blog.example.com/atom"));
 
         // Folders are preserved.
-        let news = entries.iter().find(|e| e.url == "https://news.example.com/rss").unwrap();
+        let news = entries
+            .iter()
+            .find(|e| e.url == "https://news.example.com/rss")
+            .unwrap();
         assert_eq!(news.folder.as_deref(), Some("News"));
-        let tech = entries.iter().find(|e| e.url == "https://tech.example.com/feed").unwrap();
+        let tech = entries
+            .iter()
+            .find(|e| e.url == "https://tech.example.com/feed")
+            .unwrap();
         assert_eq!(tech.folder.as_deref(), Some("Tech"));
-        let blog = entries.iter().find(|e| e.url == "https://blog.example.com/atom").unwrap();
+        let blog = entries
+            .iter()
+            .find(|e| e.url == "https://blog.example.com/atom")
+            .unwrap();
         assert!(blog.folder.is_none());
     }
 
@@ -485,8 +495,8 @@ mod tests {
     async fn import_real_opml_end_to_end() {
         use crate::db::connection::{init_db, with_db};
 
-        let path = std::env::temp_dir()
-            .join(format!("rss_reader_p3a_smoke_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("rss_reader_p3a_smoke_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_file(path.with_extension("db-wal"));
         let _ = std::fs::remove_file(path.with_extension("db-shm"));
