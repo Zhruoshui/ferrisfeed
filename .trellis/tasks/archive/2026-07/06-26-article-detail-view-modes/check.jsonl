@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data flows correctly from feed parse through Rust persistence to Flutter rendering"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Ensure no feed-specific hardcoding exists for the test feeds"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify Rust code passes tests, type checks, and follows quality standards"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Check database schema changes are correct and migrations are safe"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify error cases are handled (missing content, invalid URLs, parse failures)"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify Flutter code passes analysis and follows quality standards"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Check article detail components follow Flutter best practices"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify state management for view modes is correct"}
+{"file": ".trellis/tasks/06-26-article-detail-view-modes/prd.md", "reason": "Verify all acceptance criteria are met"}

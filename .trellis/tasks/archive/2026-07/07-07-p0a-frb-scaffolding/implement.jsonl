@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-dev checklist + guideline index"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Error conventions slot — P0a defines the project-wide AppError enum here"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Module organization slot — P0a establishes the api/{error,types,app}.rs layout"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar / forbidden patterns"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse thinking — port Livo patterns, don't duplicate"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "PRIMARY: api module layout, AppError enum, sync/async policy, codegen workflow, init_app lifecycle"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-sqlite-binding.md", "reason": "init_app/OnceLock pattern P0a stubs for P0b; flags reader.rs #[frb(sync)] pattern to abandon"}

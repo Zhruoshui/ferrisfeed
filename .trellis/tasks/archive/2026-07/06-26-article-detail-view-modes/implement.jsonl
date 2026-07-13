@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Article viewing spans Flutter UI, Rust models, database persistence, and feed parsing - need cross-layer data flow principles"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "View mode logic and content rendering should be reusable across different feed types without hardcoding"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Need Rust layer conventions for extending feed/article models and database schema"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Adding view_mode field to feeds table and ensuring article content is properly stored"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Handle feed parsing errors, missing content fields, and invalid URLs gracefully"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Need Flutter layer conventions for article detail view implementation"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Building article detail view components (webpage viewer, rendered content display)"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Managing view mode state and article display state"}
+{"file": ".trellis/tasks/06-26-article-detail-view-modes/prd.md", "reason": "Requirements for article viewing modes and acceptance criteria"}

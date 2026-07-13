@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-09-p3c-special-feed-providers/prd.md", "reason": "task PRD (goals, scope, ACs)"}
+{"file": ".trellis/tasks/07-09-p3-discovery-special-feeds/prd.md", "reason": "parent P3 ADR (schema/provider/settings decisions)"}
+{"file": ".trellis/tasks/07-09-p3-discovery-special-feeds/research/livo-special-feeds-reference.md", "reason": "Livo reference for special feeds + settings"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "migration + repository conventions"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "FRB gotchas: async/sync, tokio runtime, layer boundaries"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "AppError variants and mapping"}

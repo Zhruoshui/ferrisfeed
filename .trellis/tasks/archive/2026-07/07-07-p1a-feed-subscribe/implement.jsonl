@@ -1,0 +1,12 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-rss-parsing.md", "reason": "PRIMARY: feed-rs + reqwest(rustls) + scraper discovery; reject syndication/feedfinder"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "async fns for all network calls (never #[frb(sync)]); AppError Network/FeedParse variants"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-dev checklist"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Feed repo query patterns (upsert/list) from P0b"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "AppError Network/FeedParse/InvalidInput for feed fetch/parse/discover"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "async policy, feed/ module, keep reqwest/feed-rs types out of api/, init flow"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend guidelines entry (P1a rewires Flutter feed UI)"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Flutter component conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management conventions"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "P1a spans Rust+Flutter (cross-layer)"}

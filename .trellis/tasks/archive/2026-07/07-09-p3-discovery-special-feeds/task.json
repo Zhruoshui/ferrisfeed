@@ -1,0 +1,30 @@
+{
+  "id": "p3-discovery-special-feeds",
+  "name": "p3-discovery-special-feeds",
+  "title": "P3: Discovery & special feeds",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P3",
+  "creator": "Zhruoshui",
+  "assignee": "Zhruoshui",
+  "createdAt": "2026-07-09",
+  "completedAt": "2026-07-10",
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-09-p3a-opml-import-export",
+    "07-09-p3b-discovery-panel",
+    "07-09-p3c-special-feed-providers"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

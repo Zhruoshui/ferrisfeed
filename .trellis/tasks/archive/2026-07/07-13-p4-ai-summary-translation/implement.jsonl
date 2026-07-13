@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend module layout, FRB sync/async policy, and codegen workflow for the new ai module and api/ai.rs."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Required flutter analyze, flutter test, and FRB wasm rebuild steps after Rust API changes."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer checklist for data flow across UI, controller, FRB API, AI service, and database."}
+{"file": ".trellis/tasks/07-13-p4-ai-summary-translation/prd.md", "reason": "Requirements, decisions, and acceptance criteria for summary/translation."}
+{"file": ".trellis/tasks/07-13-p4-ai-summary-translation/design.md", "reason": "Technical design: module boundaries, DB changes, FRB API, prompt contracts, and UI integration points."}

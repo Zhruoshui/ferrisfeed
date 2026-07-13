@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify new ai module follows thin-api-over-services layout and FRB codegen rules."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify FRB bindings, flutter analyze, flutter test, and web wasm rebuild are run."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data flow and error handling across UI, controller, API, service, and DB."}
+{"file": ".trellis/tasks/07-13-p4-ai-summary-translation/prd.md", "reason": "Check acceptance criteria are met: settings, summarize, translate, caching, error handling."}
+{"file": ".trellis/tasks/07-13-p4-ai-summary-translation/design.md", "reason": "Check implementation matches architecture, contracts, and security/privacy notes."}
+{"file": ".trellis/tasks/07-13-p4-ai-summary-translation/implement.md", "reason": "Verify ordered checklist completion and validation commands were run."}

@@ -1,0 +1,12 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "async/error for search API, AppError"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-sqlite-binding.md", "reason": "LIKE query for MVP (FTS5 is future enhancement, not required)"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend checklist"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Search query pattern (LIKE on title/summary/content)"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "AppError (InvalidInput for empty query)"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Async policy, module layout"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Search UI (Flutter)"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component conventions"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Spans Rust+Flutter"}

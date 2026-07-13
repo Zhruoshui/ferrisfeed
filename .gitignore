@@ -52,6 +52,9 @@ app.*.map.json
 .codex
 .trellis/*
 !.trellis/spec/
+!.trellis/tasks/
+!.trellis/tasks/archive/
+!.trellis/tasks/archive/**
 .opencode
 .codegraph
 

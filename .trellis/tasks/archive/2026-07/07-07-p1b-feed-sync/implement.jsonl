@@ -1,0 +1,12 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "PRIMARY: StreamSink<SyncProgress> pattern (§2); async fns; AppError"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-sqlite-binding.md", "reason": "simhash dedup is in-memory (not persisted) — parity with Livo"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-rss-parsing.md", "reason": "feed fetch+parse for sync (reuse P1a feed/)"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend checklist"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Entry upsert query patterns; idempotent by guid"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "AppError for sync failures (Network/FeedParse/Database)"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Async policy; StreamSink; FRB-provides-tokio-runtime gotcha (do NOT add a 2nd runtime)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Refresh UI (Flutter)"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "State management for refresh/progress"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Spans Rust+Flutter"}

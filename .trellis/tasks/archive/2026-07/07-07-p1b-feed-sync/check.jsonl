@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Check entry"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify sync errors map to AppError"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify StreamSink + no redundant runtime"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend check"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "Verify StreamSink pattern"}

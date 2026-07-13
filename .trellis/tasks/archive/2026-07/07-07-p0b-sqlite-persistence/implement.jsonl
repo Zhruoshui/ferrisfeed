@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/rust-sqlite-binding.md", "reason": "PRIMARY: rusqlite+bundled setup, Mutex<Connection> OnceLock pattern, rusqlite_migration, WAL/FK pragmas, Android caveat, simhash in-memory"}
+{"file": ".trellis/tasks/07-07-livo-frb-refactor/research/frb-bridge-design.md", "reason": "sync/async policy, spawn_blocking_with for DB calls, init_app opens DB pool+migrations, AppError"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-dev checklist"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Slot to REWRITE for rusqlite (currently documents JSON-snapshot approach)"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "AppError::Database variant for SQLite/migration failures"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "db/ module layout (connection, migrations, repositories)"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality bar / forbidden patterns"}
